@@ -1,103 +1,65 @@
 # Copper MCP Server
 
-A FastAPI-based server that implements the Model Context Protocol (MCP) for Copper CRM integration. This service translates Copper CRM data into standardized MCP format, enabling consistent model context access across different systems.
+A server implementation for transforming Copper CRM data to MCP (Model Context Protocol) format.
 
 ## Features
 
-- FastAPI-based REST API
-- Copper CRM API integration with authentication
-- Model Context Protocol (MCP) compliant responses
+- Transform Copper CRM entities to MCP format
+- Support for People, Companies, Opportunities, and Activities
+- STDIO transport support for MCP compatibility
+- FastAPI-based HTTP API
 - Comprehensive test coverage
-- Type-safe implementation with Pydantic
 
-## Prerequisites
+## Environment Variables
 
-- Python 3.9+
-- Copper CRM API credentials
-  - API Key
-  - User Email
+```
+COPPER_API_TOKEN=your_api_token
+COPPER_USER_EMAIL=your_email
+COPPER_USER_ID=your_user_id
+```
 
 ## Installation
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd copper-mcp-server
-   ```
+```bash
+pip install -r requirements.txt
+```
 
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+## Running the Server
 
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+### HTTP Mode
+```bash
+uvicorn app.main:app --reload
+```
 
-4. Create a `.env` file in the project root:
-   ```
-   COPPER_API_KEY=your_api_key
-   COPPER_USER_EMAIL=your_email
-   ```
+### STDIO Mode
+```bash
+python app/run_stdio.py
+```
 
-## Usage
+## Testing
 
-1. Start the server:
-   ```bash
-   uvicorn app.main:app --reload
-   ```
+```bash
+pytest -v
+```
 
-2. Access the API documentation:
-   - OpenAPI UI: http://localhost:8000/docs
-   - ReDoc: http://localhost:8000/redoc
+## API Endpoints
+
+- `GET /health` - Health check endpoint
+- `GET /search` - Search across multiple entity types
+- `GET /person/{id}` - Get person by ID
+- `GET /company/{id}` - Get company by ID
+- `GET /opportunity/{id}` - Get opportunity by ID
+- `GET /activity/{id}` - Get activity by ID
 
 ## Development
 
-### Running Tests
-
-```bash
-pytest
-```
-
-For test coverage report:
-```bash
-pytest --cov=app
-```
-
-### Code Formatting
-
-```bash
-black .
-```
-
-### Type Checking
-
-```bash
-mypy .
-```
-
-## Project Structure
-
-```
-.
-├── app/
-│   ├── copper/        # Copper API integration
-│   ├── models/        # Pydantic models
-│   └── mapping/       # Data transformation
-├── tests/            # Test suite
-└── docs/            # Additional documentation
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+1. Clone the repository
+2. Create a virtual environment: `python -m venv venv`
+3. Activate the virtual environment: `source venv/bin/activate`
+4. Install dependencies: `pip install -r requirements.txt`
+5. Set up environment variables
+6. Run tests: `pytest -v`
 
 ## License
 
-[License Type] - See LICENSE file for details 
+MIT
