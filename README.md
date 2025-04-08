@@ -88,10 +88,9 @@ pytest -v
 
 ## Security Notes
 
-- Never commit your `.env` file to version control
-- Keep your API tokens secure and rotate them regularly
-- Use environment variables for all sensitive configuration
-- Review VCR cassettes to ensure no sensitive data is recorded
+* Never commit your `.env` file to version control
+* Keep your API tokens secure and rotate them regularly
+* Use environment variables for all sensitive configuration
 
 ## License
 

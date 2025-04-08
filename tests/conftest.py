@@ -8,7 +8,6 @@ from fastapi.testclient import TestClient
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.exceptions import ExceptionMiddleware
 import os
-import vcr
 from typing import Generator
 
 from app.copper.client.base import CopperClient
@@ -16,15 +15,6 @@ from app.copper.auth import get_auth_token
 from app.copper.client.people import PeopleClient
 from app.copper.client.companies import CompaniesClient
 from app.copper.client.activities import ActivitiesClient
-
-# Configure VCR
-vcr_config = vcr.VCR(
-    cassette_library_dir="tests/vcr_cassettes",
-    record_mode="once",
-    match_on=["method", "scheme", "host", "port", "path", "query", "body"],
-    filter_headers=["authorization"],  # Don't record auth headers
-    filter_post_data_parameters=["token", "email"],  # Don't record sensitive data
-)
 
 @pytest_asyncio.fixture
 async def copper_client() -> CopperClient:
@@ -147,12 +137,4 @@ def client(app: FastAPI) -> TestClient:
     Returns:
         TestClient: A configured test client
     """
-    return TestClient(app)
-
-@pytest.fixture
-def vcr_cassette(request) -> Generator[vcr.VCR, None, None]:
-    """Provides a VCR instance for recording/replaying HTTP interactions."""
-    # Use the test name as the cassette name
-    cassette_name = request.node.name.replace("[", "_").replace("]", "_")
-    with vcr_config.use_cassette(f"{cassette_name}.yaml"):
-        yield vcr_config 
+    return TestClient(app) 
