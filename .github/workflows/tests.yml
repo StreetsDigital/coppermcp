@@ -28,7 +28,7 @@ jobs:
         
     - name: Run tests
       env:
-        COPPER_API_TOKEN: ${{ secrets.COPPER_API_TOKEN }}
+        COPPER_API_KEY: ${{ secrets.COPPER_API_KEY }}
         COPPER_USER_EMAIL: ${{ secrets.COPPER_USER_EMAIL }}
       run: |
         pytest -v 
