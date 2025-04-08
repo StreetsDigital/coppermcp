@@ -1,12 +1,17 @@
 """Company transformer for converting Copper company data to MCP format."""
-from typing import Dict, Any, List
+from typing import Dict, Any, List, TypeVar
 from datetime import datetime
 
 from app.mapping.transform import BaseTransformer
 from app.models.copper import Company, EmailPhone
+from app.models.mcp import MCPCompany
 
-class CompanyTransformer(BaseTransformer[Company]):
+class CompanyTransformer(BaseTransformer[Company, MCPCompany]):
     """Transformer for Copper Company entities."""
+    
+    def __init__(self, copper_model: type[Company], mcp_model: type[MCPCompany]):
+        """Initialize the transformer with models."""
+        super().__init__(copper_model=copper_model, mcp_model=mcp_model)
 
     def _to_mcp_format(self, validated_data: Company) -> Dict[str, Any]:
         """
@@ -23,22 +28,23 @@ class CompanyTransformer(BaseTransformer[Company]):
         
         # Get primary website
         primary_website = next(iter(validated_data.websites), None)
+        if primary_website:
+            primary_website = str(primary_website)  # Convert HttpUrl to string
         
         result = {
-            "id": str(validated_data.id) if validated_data.id else None,
             "type": "company",
             "attributes": {
                 "name": validated_data.name,
-                "phone": primary_phone.phone if primary_phone else None,
-                "website": str(primary_website) if primary_website else None,
+                "phone": primary_phone,
+                "website": primary_website,
                 "industry": validated_data.industry,
                 "details": validated_data.details,
                 "email_domain": validated_data.email_domain,
-                "tags": validated_data.tags,
+                "tags": validated_data.tags or [],
                 "annual_revenue": validated_data.annual_revenue,
                 "employee_count": validated_data.employee_count,
-                "created_at": validated_data.date_created.isoformat() if validated_data.date_created else None,
-                "updated_at": validated_data.date_modified.isoformat() if validated_data.date_modified else None
+                "created_at": self._format_datetime(validated_data.date_created),
+                "updated_at": self._format_datetime(validated_data.date_modified)
             },
             "relationships": {
                 "assignee": {
@@ -50,17 +56,18 @@ class CompanyTransformer(BaseTransformer[Company]):
             },
             "meta": {
                 "interaction_count": validated_data.interaction_count or 0,
-                "contact_type_id": validated_data.contact_type_id,
                 "additional_phones": [
                     {"phone": p.phone, "category": p.category}
-                    for p in validated_data.phone_numbers[1:] if p.phone  # Skip primary
+                    for i, p in enumerate(validated_data.phone_numbers)
+                    if i > 0 and p.phone  # Skip primary
                 ],
                 "social_profiles": [
                     {"url": str(s.url), "category": s.category}
-                    for s in validated_data.socials
+                    for s in getattr(validated_data, 'socials', [])
                 ],
                 "additional_websites": [
-                    str(w) for w in validated_data.websites[1:]  # Skip primary
+                    str(w) for i, w in enumerate(validated_data.websites)  # Convert HttpUrl to string
+                    if i > 0  # Skip primary
                 ],
                 "custom_fields": {
                     str(f.custom_field_definition_id): f.value
@@ -81,8 +88,15 @@ class CompanyTransformer(BaseTransformer[Company]):
         
         return result
 
-    def _get_primary_contact(self, contacts: List[EmailPhone]) -> EmailPhone:
-        """Get the primary contact method (first in list or work category)."""
+    def _get_primary_contact(self, contacts: List[EmailPhone]) -> str:
+        """Get the primary contact method value (first in list or work category).
+        
+        Args:
+            contacts: List of contact methods
+            
+        Returns:
+            str: Primary contact value or None if no contacts
+        """
         if not contacts:
             return None
             
@@ -93,4 +107,7 @@ class CompanyTransformer(BaseTransformer[Company]):
         )
         
         # If no work contact, use the first one
-        return work_contact or contacts[0] 
+        contact = work_contact or contacts[0]
+        
+        # Return phone value
+        return contact.phone if contact else None 

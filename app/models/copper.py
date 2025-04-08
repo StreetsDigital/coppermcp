@@ -101,6 +101,7 @@ class Opportunity(BaseModel):
     assignee_id: Optional[int] = None
     company_id: Optional[int] = None
     company_name: Optional[str] = None
+    primary_contact_id: Optional[int] = None
     status: str  # Open, Won, Lost, etc.
     priority: Optional[str] = None  # High, Medium, Low
     pipeline_id: Optional[int] = None
@@ -128,6 +129,7 @@ class Activity(BaseModel):
     custom_fields: List[CustomField] = Field(default_factory=list)
     date_created: Optional[datetime] = None
     date_modified: Optional[datetime] = None
+    tags: List[str] = Field(default_factory=list)
 
 
 class ActivityCreate(Activity):

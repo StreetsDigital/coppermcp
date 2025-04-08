@@ -3,19 +3,22 @@
 This script starts the FastAPI application using STDIO transport for MCP compatibility.
 """
 import asyncio
-import os
-from dotenv import load_dotenv
-from .main import app
-from .transport.stdio import create_stdio_transport
+import logging
+from main import app
+from transport.stdio import create_stdio_transport
+
+# Set up logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 async def main():
-    """Main entry point for STDIO transport."""
-    # Load environment variables from .env file
-    load_dotenv()
-    
-    # Create and start STDIO transport
+    """Start the STDIO transport."""
+    logger.info("Starting Copper MCP Server with STDIO transport")
     transport = create_stdio_transport(app)
-    await transport.start()
+    await transport.run()
 
 if __name__ == "__main__":
     # Run the async main function

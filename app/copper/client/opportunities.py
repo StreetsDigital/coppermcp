@@ -92,11 +92,58 @@ Common Patterns:
 - Keep opportunity names descriptive and consistent
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
-from .base import CopperClient
+from pydantic import BaseModel, Field, validator
+from .base import CopperClient, CopperAPIError
 
 from ..models.opportunities import Opportunity, OpportunityCreate, OpportunityUpdate
+
+
+class PaginationParams(BaseModel):
+    """Parameters for paginating results."""
+    
+    page_size: Optional[int] = Field(None, le=200, gt=0)
+    page_number: Optional[int] = Field(None, gt=0)
+
+
+class SearchQuery(BaseModel):
+    """Parameters for searching opportunities."""
+    
+    name: Optional[str] = None
+    company_id: Optional[int] = Field(None, gt=0)
+    pipeline_id: Optional[int] = Field(None, gt=0)
+    pipeline_stage_id: Optional[int] = Field(None, gt=0)
+    status: Optional[str] = Field(None, pattern="^(Open|Won|Lost|Abandoned)$")
+    min_value: Optional[float] = Field(None, gt=0)
+    max_value: Optional[float] = Field(None, gt=0)
+    close_date_start: Optional[datetime] = None
+    close_date_end: Optional[datetime] = None
+    assignee_id: Optional[int] = Field(None, gt=0)
+    tags: Optional[List[str]] = None
+    
+    @validator("max_value")
+    def max_value_greater_than_min(cls, v, values):
+        """Validate that max_value is greater than min_value if both are provided."""
+        if v is not None and values.get("min_value") is not None:
+            if v <= values["min_value"]:
+                raise ValueError("max_value must be greater than min_value")
+        return v
+    
+    @validator("close_date_end")
+    def end_date_after_start(cls, v, values):
+        """Validate that end date is after start date if both are provided."""
+        if v is not None and values.get("close_date_start") is not None:
+            if v <= values["close_date_start"]:
+                raise ValueError("close_date_end must be after close_date_start")
+        return v
+
+    @validator("company_id", "pipeline_id", "pipeline_stage_id", "assignee_id")
+    def validate_positive_ids(cls, v: Optional[int]) -> Optional[int]:
+        """Validate that IDs are positive integers."""
+        if v is not None and v <= 0:
+            raise ValueError("ID must be positive")
+        return v
 
 
 class OpportunitiesClient:
@@ -112,25 +159,34 @@ class OpportunitiesClient:
     
     async def list(
         self,
-        page_size: Optional[int] = None,
-        page_number: Optional[int] = None
+        pagination: Optional[PaginationParams] = None
     ) -> List[Dict[str, Any]]:
-        """List opportunities.
+        """List opportunities with pagination.
         
         Args:
-            page_size: Number of records to return per page
-            page_number: Page number to return
+            pagination: Optional pagination parameters
             
         Returns:
             List[Dict[str, Any]]: List of opportunities
         """
-        params = {}
-        if page_size is not None:
-            params["page_size"] = page_size
-        if page_number is not None:
-            params["page_number"] = page_number
-            
+        params = pagination.dict(exclude_none=True) if pagination else {}
         return await self.client.get("/opportunities", params=params)
+    
+    async def list_all(self) -> List[Dict[str, Any]]:
+        """List all opportunities by automatically handling pagination.
+        
+        Returns:
+            List[Dict[str, Any]]: Complete list of opportunities
+        """
+        results = []
+        page = 1
+        while True:
+            batch = await self.list(PaginationParams(page_number=page, page_size=200))
+            if not batch:
+                break
+            results.extend(batch)
+            page += 1
+        return results
     
     async def get(self, opportunity_id: int) -> Dict[str, Any]:
         """Get an opportunity by ID.
@@ -140,47 +196,155 @@ class OpportunitiesClient:
             
         Returns:
             Dict[str, Any]: Opportunity details
+            
+        Raises:
+            ValueError: If opportunity_id is not positive
+            CopperAPIError: If opportunity is not found
         """
+        if opportunity_id <= 0:
+            raise ValueError("opportunity_id must be positive")
+            
         return await self.client.get(f"/opportunities/{opportunity_id}")
     
-    async def create(self, opportunity: Dict[str, Any]) -> Dict[str, Any]:
+    async def create(self, opportunity: Union[Dict[str, Any], OpportunityCreate]) -> Dict[str, Any]:
         """Create a new opportunity.
         
         Args:
-            opportunity: Opportunity data
+            opportunity: Opportunity data or OpportunityCreate model
             
         Returns:
             Dict[str, Any]: Created opportunity
+            
+        Raises:
+            ValueError: If required fields are missing
         """
-        return await self.client.post("/opportunities", json=opportunity)
+        if isinstance(opportunity, OpportunityCreate):
+            data = opportunity.dict(exclude_none=True)
+        else:
+            data = opportunity
+            
+        if not data.get("name"):
+            raise ValueError("name is required")
+        if not data.get("pipeline_id"):
+            raise ValueError("pipeline_id is required")
+        if not data.get("pipeline_stage_id"):
+            raise ValueError("pipeline_stage_id is required")
+            
+        return await self.client.post("/opportunities", json=data)
     
-    async def update(self, opportunity_id: int, opportunity: Dict[str, Any]) -> Dict[str, Any]:
+    async def bulk_create(self, opportunities: List[Union[Dict[str, Any], OpportunityCreate]]) -> List[Dict[str, Any]]:
+        """Create multiple opportunities in bulk.
+        
+        Args:
+            opportunities: List of opportunity data or OpportunityCreate models
+            
+        Returns:
+            List[Dict[str, Any]]: List of created opportunities
+            
+        Raises:
+            ValueError: If opportunities list is empty or required fields are missing
+        """
+        if not opportunities:
+            raise ValueError("opportunities list cannot be empty")
+            
+        results = []
+        errors = []
+        
+        for i, opp in enumerate(opportunities):
+            try:
+                result = await self.create(opp)
+                results.append(result)
+            except ValueError as e:
+                errors.append(f"Error in opportunity {i}: {str(e)}")
+            except CopperAPIError as e:
+                errors.append(f"API error in opportunity {i}: {str(e)}")
+                
+        if errors:
+            raise ValueError(f"Bulk create failed with errors: {'; '.join(errors)}")
+            
+        return results
+    
+    async def update(
+        self,
+        opportunity_id: int,
+        opportunity: Union[Dict[str, Any], OpportunityUpdate]
+    ) -> Dict[str, Any]:
         """Update an opportunity.
         
         Args:
             opportunity_id: ID of the opportunity to update
-            opportunity: Updated opportunity data
+            opportunity: Updated opportunity data or OpportunityUpdate model
             
         Returns:
             Dict[str, Any]: Updated opportunity
         """
-        return await self.client.put(f"/opportunities/{opportunity_id}", json=opportunity)
+        if isinstance(opportunity, OpportunityUpdate):
+            data = opportunity.dict(exclude_none=True)
+        else:
+            data = opportunity
+        return await self.client.put(f"/opportunities/{opportunity_id}", json=data)
+    
+    async def bulk_update(
+        self,
+        updates: List[tuple[int, Union[Dict[str, Any], OpportunityUpdate]]]
+    ) -> List[Dict[str, Any]]:
+        """Update multiple opportunities in bulk.
+        
+        Args:
+            updates: List of tuples containing (opportunity_id, update_data)
+            
+        Returns:
+            List[Dict[str, Any]]: List of updated opportunities
+            
+        Raises:
+            ValueError: If updates list is empty or contains invalid data
+            CopperAPIError: If any update operation fails
+        """
+        if not updates:
+            raise ValueError("updates list cannot be empty")
+            
+        results = []
+        errors = []
+        
+        for i, (opp_id, update_data) in enumerate(updates):
+            try:
+                result = await self.update(opp_id, update_data)
+                results.append(result)
+            except ValueError as e:
+                errors.append(f"Error in update {i}: {str(e)}")
+            except CopperAPIError as e:
+                errors.append(f"API error in update {i}: {str(e)}")
+                
+        if errors:
+            raise ValueError(f"Bulk update failed with errors: {'; '.join(errors)}")
+            
+        return results
     
     async def delete(self, opportunity_id: int) -> None:
         """Delete an opportunity.
         
         Args:
             opportunity_id: ID of the opportunity to delete
+            
+        Raises:
+            CopperAPIError: If opportunity is not found
         """
         await self.client.delete(f"/opportunities/{opportunity_id}")
     
-    async def search(self, query: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def search(
+        self,
+        query: Union[Dict[str, Any], SearchQuery]
+    ) -> List[Dict[str, Any]]:
         """Search for opportunities.
         
         Args:
-            query: Search criteria
+            query: Search criteria as dict or SearchQuery model
             
         Returns:
             List[Dict[str, Any]]: Matching opportunities
         """
-        return await self.client.post("/opportunities/search", json=query) 
+        if isinstance(query, SearchQuery):
+            data = query.dict(exclude_none=True)
+        else:
+            data = query
+        return await self.client.post("/opportunities/search", json=data) 

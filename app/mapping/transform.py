@@ -3,7 +3,7 @@
 This module provides the base transformation logic and utilities for converting
 Copper CRM data into MCP (Model Context Protocol) format.
 """
-from typing import Dict, Any, List, Optional, TypeVar, Generic, Type
+from typing import Dict, Any, List, Optional, TypeVar, Generic, Type, Union
 from datetime import datetime
 from pydantic import BaseModel
 
@@ -21,32 +21,38 @@ class BaseTransformer(Generic[CopperT, MCPT]):
         self.mcp_model = mcp_model
         self.entity_type = mcp_model.model_fields["type"].default
     
-    def to_mcp(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def to_mcp(self, data: Union[Dict[str, Any], CopperT]) -> Dict[str, Any]:
         """Transform Copper data to MCP format."""
-        validated_data = self.copper_model.model_validate(data)
+        # If data is already a model instance, use it directly
+        if isinstance(data, self.copper_model):
+            validated_data = data
+        else:
+            validated_data = self.copper_model.model_validate(data)
+            
         mcp_data = self._to_mcp_format(validated_data)
         
         # Add standard MCP fields if not already present
         if "type" not in mcp_data:
             mcp_data["type"] = self.entity_type
             
-        mcp_data.update({
-            "source": "copper",
-            "source_id": str(validated_data.id),
-            "relationships": {},
-            "meta": {}
-        })
-        
+        # Ensure attributes field exists
+        if "attributes" not in mcp_data:
+            mcp_data["attributes"] = {}
+            
         # Add timestamps if available
         if hasattr(validated_data, "date_created"):
-            if "attributes" not in mcp_data:
-                mcp_data["attributes"] = {}
             mcp_data["attributes"]["created_at"] = self._format_datetime(validated_data.date_created)
             
         if hasattr(validated_data, "date_modified"):
-            if "attributes" not in mcp_data:
-                mcp_data["attributes"] = {}
             mcp_data["attributes"]["updated_at"] = self._format_datetime(validated_data.date_modified)
+            
+        # Add standard MCP fields
+        mcp_data.update({
+            "source": "copper",
+            "source_id": str(validated_data.id),
+            "relationships": mcp_data.get("relationships", {}),
+            "meta": mcp_data.get("meta", {})
+        })
         
         # Create MCP model instance
         mcp_instance = self.mcp_model.model_validate(mcp_data)

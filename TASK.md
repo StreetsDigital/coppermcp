@@ -21,10 +21,10 @@
   - [x] Choose and implement API interaction method
   - [x] Update PLANNING.md with chosen strategy
 
-- [ ] Task 1.3: Create Data Mapping Strategy
-  - [ ] Define Copper to MCP field mappings
-  - [ ] Create initial Pydantic models for data validation
-  - [ ] Document mapping strategy
+- [x] Task 1.3: Create Data Mapping Strategy
+  - [x] Define Copper to MCP field mappings
+  - [x] Create initial Pydantic models for data validation
+  - [x] Document mapping strategy
 
 ## Phase 2: Setup & Foundation
 - [x] Task 2.1: Project Environment Setup
@@ -52,23 +52,23 @@
   - [x] Add unit tests
   - [x] Create data transformation logic
 
-- [ ] Task 3.3: Data Transformation
-  - [ ] Create transform.py module
-  - [ ] Implement Copper to MCP conversion
-  - [ ] Add unit tests
-  - [ ] Verify data mapping accuracy
+- [x] Task 3.3: Data Transformation
+  - [x] Create transform.py module
+  - [x] Implement Copper to MCP conversion
+  - [x] Add unit tests
+  - [x] Verify data mapping accuracy
 
-- [ ] Task 3.4: Additional Entities
-  - [ ] Task 3.4.1: Implement Opportunities
-  - [ ] Task 3.4.2: Implement Activities
-  - [ ] Task 3.4.3: Add unit tests
-  - [ ] Task 3.4.4: Verify transformations
+- [x] Task 3.4: Additional Entities
+  - [x] Task 3.4.1: Implement Opportunities
+  - [x] Task 3.4.2: Implement Activities
+  - [x] Task 3.4.3: Add unit tests
+  - [x] Task 3.4.4: Verify transformations
 
-- [ ] Task 3.5: FastAPI Integration
-  - [ ] Create main API endpoint
-  - [ ] Implement request handling
-  - [ ] Add error handling
-  - [ ] Create integration tests
+- [x] Task 3.5: FastAPI Integration
+  - [x] Create main API endpoint
+  - [x] Implement request handling
+  - [x] Add error handling
+  - [x] Create integration tests
 
 ## Phase 4: Refinement
 - [ ] Task 4.1: Code Review
@@ -83,12 +83,12 @@
   - [ ] Document API endpoints
   - [ ] Add setup instructions
 
-- [ ] Task 4.3: Testing
+- [x] Task 4.3: Testing
   - [x] Set up testing framework with pytest
   - [x] Configure test fixtures and middleware
-  - [ ] Add integration tests
-  - [ ] Verify error handling
-  - [ ] Document test coverage
+  - [x] Add integration tests
+  - [x] Verify error handling
+  - [x] Document test coverage
 
 ## Discovered During Work
 *(New tasks or issues found during development will be added here)*

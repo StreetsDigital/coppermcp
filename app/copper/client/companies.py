@@ -77,10 +77,40 @@ Common Patterns:
 - Use full URLs for websites (add https:// if missing)
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, AsyncIterator, Union
+from pydantic import BaseModel, Field, HttpUrl, validator
 from .base import CopperClient
 from ..models.companies import Company, CompanyCreate, CompanyUpdate
 
+
+class PaginationParams(BaseModel):
+    """Parameters for paginated requests."""
+    page_size: Optional[int] = Field(None, ge=1, le=200)
+    page_number: Optional[int] = Field(None, ge=1)
+
+    @validator('page_size')
+    def validate_page_size(cls, v: Optional[int]) -> Optional[int]:
+        """Validate page size is within API limits."""
+        if v is not None and v > 200:
+            raise ValueError("Maximum page size is 200")
+        return v
+
+class SearchQuery(BaseModel):
+    """Search query parameters."""
+    query: Optional[str] = None
+    name: Optional[str] = None
+    industry: Optional[str] = None
+    website: Optional[HttpUrl] = None
+    assignee_id: Optional[int] = Field(None, gt=0)
+    tags: Optional[List[str]] = None
+    custom_fields: Optional[List[Dict[str, Any]]] = None
+
+    @validator('website', pre=True)
+    def ensure_website_protocol(cls, v: Optional[str]) -> Optional[str]:
+        """Ensure website URLs have a protocol."""
+        if v and isinstance(v, str) and not v.startswith(('http://', 'https://')):
+            return f'https://{v}'
+        return v
 
 class CompaniesClient:
     """Client for managing companies in Copper CRM."""
@@ -95,25 +125,37 @@ class CompaniesClient:
     
     async def list(
         self,
-        page_size: Optional[int] = None,
-        page_number: Optional[int] = None
+        pagination: Optional[PaginationParams] = None
     ) -> List[Dict[str, Any]]:
         """List companies.
         
         Args:
-            page_size: Number of records to return per page
-            page_number: Page number to return
+            pagination: Optional pagination parameters
             
         Returns:
             List[Dict[str, Any]]: List of companies
         """
-        params = {}
-        if page_size is not None:
-            params["page_size"] = page_size
-        if page_number is not None:
-            params["page_number"] = page_number
-            
+        params = pagination.dict(exclude_none=True) if pagination else {}
         return await self.client.get("/companies", params=params)
+    
+    async def list_all(self) -> AsyncIterator[Dict[str, Any]]:
+        """List all companies using automatic pagination.
+        
+        Yields:
+            Dict[str, Any]: Each company record
+        """
+        page_number = 1
+        while True:
+            pagination = PaginationParams(page_size=200, page_number=page_number)
+            results = await self.list(pagination)
+            
+            if not results:
+                break
+                
+            for result in results:
+                yield result
+                
+            page_number += 1
     
     async def get(self, company_id: int) -> Dict[str, Any]:
         """Get a company by ID.
@@ -123,7 +165,13 @@ class CompaniesClient:
             
         Returns:
             Dict[str, Any]: Company details
+            
+        Raises:
+            ValueError: If company_id is not positive
         """
+        if company_id <= 0:
+            raise ValueError("company_id must be positive")
+            
         return await self.client.get(f"/companies/{company_id}")
     
     async def create(self, company: Dict[str, Any]) -> Dict[str, Any]:
@@ -134,7 +182,18 @@ class CompaniesClient:
             
         Returns:
             Dict[str, Any]: Created company
+            
+        Raises:
+            ValueError: If required fields are missing
         """
+        if not company.get("name"):
+            raise ValueError("name is required")
+            
+        # Ensure website has protocol
+        if website := company.get("website"):
+            if isinstance(website, str) and not website.startswith(('http://', 'https://')):
+                company["website"] = f'https://{website}'
+            
         return await self.client.post("/companies", json=company)
     
     async def update(self, company_id: int, company: Dict[str, Any]) -> Dict[str, Any]:
@@ -146,7 +205,18 @@ class CompaniesClient:
             
         Returns:
             Dict[str, Any]: Updated company
+            
+        Raises:
+            ValueError: If company_id is not positive
         """
+        if company_id <= 0:
+            raise ValueError("company_id must be positive")
+            
+        # Ensure website has protocol
+        if website := company.get("website"):
+            if isinstance(website, str) and not website.startswith(('http://', 'https://')):
+                company["website"] = f'https://{website}'
+            
         return await self.client.put(f"/companies/{company_id}", json=company)
     
     async def delete(self, company_id: int) -> None:
@@ -154,16 +224,83 @@ class CompaniesClient:
         
         Args:
             company_id: ID of the company to delete
+            
+        Raises:
+            ValueError: If company_id is not positive
         """
+        if company_id <= 0:
+            raise ValueError("company_id must be positive")
+            
         await self.client.delete(f"/companies/{company_id}")
     
-    async def search(self, query: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def search(self, query: Union[Dict[str, Any], SearchQuery]) -> List[Dict[str, Any]]:
         """Search for companies.
         
         Args:
-            query: Search criteria
+            query: Search criteria, either as a dict or SearchQuery model
             
         Returns:
             List[Dict[str, Any]]: Matching companies
+            
+        Raises:
+            ValueError: If query validation fails
         """
-        return await self.client.post("/companies/search", json=query) 
+        if isinstance(query, dict):
+            query = SearchQuery(**query)
+            
+        return await self.client.post("/companies/search", json=query.dict(exclude_none=True))
+    
+    async def bulk_create(self, companies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Create multiple companies in one request.
+        
+        Args:
+            companies: List of company data
+            
+        Returns:
+            List[Dict[str, Any]]: List of created companies
+            
+        Raises:
+            ValueError: If any required fields are missing
+        """
+        if not companies:
+            raise ValueError("companies list cannot be empty")
+            
+        for company in companies:
+            if not company.get("name"):
+                raise ValueError("name is required for all companies")
+                
+            # Ensure website has protocol
+            if website := company.get("website"):
+                if isinstance(website, str) and not website.startswith(('http://', 'https://')):
+                    company["website"] = f'https://{website}'
+                
+        return await self.client.post("/companies/bulk", json={"companies": companies})
+    
+    async def bulk_update(
+        self,
+        updates: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Update multiple companies in one request.
+        
+        Args:
+            updates: List of company updates, each must include 'id'
+            
+        Returns:
+            List[Dict[str, Any]]: List of updated companies
+            
+        Raises:
+            ValueError: If any required fields are missing
+        """
+        if not updates:
+            raise ValueError("updates list cannot be empty")
+            
+        for update in updates:
+            if not update.get("id"):
+                raise ValueError("id is required for all updates")
+                
+            # Ensure website has protocol
+            if website := update.get("website"):
+                if isinstance(website, str) and not website.startswith(('http://', 'https://')):
+                    update["website"] = f'https://{website}'
+                
+        return await self.client.put("/companies/bulk", json={"companies": updates}) 
