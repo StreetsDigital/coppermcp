@@ -12,7 +12,7 @@ Supported Features:
 """
 
 from typing import Dict, List, Any
-from mcp.server.fastmcp import FastMCP
+from app.mcp.server import FastMCP
 from app.copper.client import CopperClient
 from app.models.copper import Person, Company, Opportunity, Activity, Task
 from app.mapping.transform import transform_to_mcp, transform_from_copper

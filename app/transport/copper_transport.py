@@ -5,9 +5,12 @@ Implements the MCP transport protocol for Copper CRM operations.
 Handles command processing and response formatting according to MCP specifications.
 """
 
-from typing import Dict, Any, Optional
-from mcp.transport import BaseTransport
-from mcp.errors import MCPError, MCPValidationError
+from typing import Dict, Any, Optional, AsyncIterator
+import json
+import sys
+import os
+from app.mcp.transport import BaseTransport
+from app.mcp.errors import MCPError, MCPValidationError
 from app.copper.client import CopperClient
 from app.models.copper import Person, Company, Opportunity, Activity, Task
 from app.mapping.transform import transform_to_mcp, transform_from_copper

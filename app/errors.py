@@ -6,7 +6,7 @@ specifications while providing Copper-specific context and details.
 """
 
 from typing import Optional, Any, Dict
-from mcp.errors import MCPError, MCPValidationError
+from app.mcp.errors import MCPError, MCPValidationError
 
 class CopperMCPError(MCPError):
     """Base error class for Copper MCP operations.
