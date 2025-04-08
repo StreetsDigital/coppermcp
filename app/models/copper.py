@@ -43,9 +43,10 @@ class ParentEntity(BaseModel):
 
 
 class ActivityType(BaseModel):
-    """Activity type information."""
+    """Activity type configuration in Copper CRM."""
+    id: str
     category: str
-    id: int
+    name: str
 
 
 class Person(BaseModel):
@@ -62,7 +63,7 @@ class Person(BaseModel):
     emails: List[EmailPhone] = Field(default_factory=list)
     phone_numbers: List[EmailPhone] = Field(default_factory=list)
     socials: List[Social] = Field(default_factory=list)
-    websites: List[HttpUrl] = Field(default_factory=list)
+    websites: List[str] = Field(default_factory=list)
     address: Optional[Address] = None
     assignee_id: Optional[int] = None
     contact_type_id: Optional[int] = None
@@ -81,17 +82,20 @@ class Company(BaseModel):
     assignee_id: Optional[int] = None
     address: Optional[Address] = None
     phone_numbers: List[EmailPhone] = Field(default_factory=list)
+    socials: List[Social] = Field(default_factory=list)
     websites: List[HttpUrl] = Field(default_factory=list)
     email_domain: Optional[str] = None
     details: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
     custom_fields: List[CustomField] = Field(default_factory=list)
-    industry: Optional[str] = None
-    annual_revenue: Optional[float] = None
-    employee_count: Optional[int] = None
+    industry: Optional[str] = Field(None, pattern="^[A-Za-z0-9 &-]+$")
+    annual_revenue: Optional[float] = Field(None, ge=0)
+    employee_count: Optional[int] = Field(None, ge=0)
     date_created: Optional[datetime] = None
     date_modified: Optional[datetime] = None
-    interaction_count: Optional[int] = None
+    interaction_count: Optional[int] = Field(None, ge=0)
+    primary_contact_id: Optional[int] = None
+    status: Optional[str] = Field(None, pattern="^(active|inactive|prospect)$")
 
 
 class Opportunity(BaseModel):
@@ -118,25 +122,39 @@ class Opportunity(BaseModel):
 
 
 class Activity(BaseModel):
-    """Activity entity model."""
-    id: Optional[int] = None
+    """Activity model for Copper CRM."""
+    id: Optional[str] = None
     type: ActivityType
     details: Optional[str] = None
-    activity_date: Optional[int] = None  # Unix timestamp
-    parent: ParentEntity
-    user_id: Optional[int] = None
-    assignee_id: Optional[int] = None
-    custom_fields: List[CustomField] = Field(default_factory=list)
-    date_created: Optional[datetime] = None
-    date_modified: Optional[datetime] = None
-    tags: List[str] = Field(default_factory=list)
+    activity_date: int = Field(description="Unix timestamp of when the activity occurred")
+    user_id: str
+    parent: Dict[str, str] = Field(description="Parent entity details with type and id")
+    assignee_id: Optional[str] = None
+    custom_fields: List[CustomField] = []
+    created_at: Optional[int] = None
+    updated_at: Optional[int] = None
 
 
-class ActivityCreate(Activity):
-    """Model for creating new activities."""
-    id: None = None
-    date_created: None = None
-    date_modified: None = None
+class ActivityCreate(BaseModel):
+    """Model for creating a new activity in Copper CRM."""
+    type: ActivityType
+    details: Optional[str] = None
+    activity_date: int = Field(description="Unix timestamp of when the activity occurred")
+    user_id: str
+    parent: Dict[str, str] = Field(description="Parent entity details with type and id")
+    assignee_id: Optional[str] = None
+    custom_fields: List[CustomField] = []
+
+
+class ActivityUpdate(BaseModel):
+    """Model for updating an existing activity in Copper CRM."""
+    type: Optional[ActivityType] = None
+    details: Optional[str] = None
+    activity_date: Optional[int] = None
+    user_id: Optional[str] = None
+    parent: Optional[Dict[str, str]] = None
+    assignee_id: Optional[str] = None
+    custom_fields: Optional[List[CustomField]] = None
 
 
 class Task(BaseModel):
@@ -200,7 +218,7 @@ class PersonCreate(BaseModel):
     emails: List[EmailPhone] = Field(default_factory=list)
     phone_numbers: List[EmailPhone] = Field(default_factory=list)
     socials: List[Social] = Field(default_factory=list)
-    websites: List[HttpUrl] = Field(default_factory=list)
+    websites: List[Social] = Field(default_factory=list)
     address: Optional[Address] = None
     assignee_id: Optional[int] = None
     contact_type_id: Optional[int] = None
@@ -222,10 +240,48 @@ class PersonUpdate(BaseModel):
     emails: Optional[List[EmailPhone]] = None
     phone_numbers: Optional[List[EmailPhone]] = None
     socials: Optional[List[Social]] = None
-    websites: Optional[List[HttpUrl]] = None
+    websites: Optional[List[Social]] = None
     address: Optional[Address] = None
     assignee_id: Optional[int] = None
     contact_type_id: Optional[int] = None
     details: Optional[str] = None
     tags: Optional[List[str]] = None
-    custom_fields: Optional[List[CustomField]] = None 
+    custom_fields: Optional[List[CustomField]] = None
+
+
+class CompanyCreate(BaseModel):
+    """Model for creating a new company."""
+    name: str
+    assignee_id: Optional[int] = None
+    address: Optional[Address] = None
+    phone_numbers: List[EmailPhone] = Field(default_factory=list)
+    socials: List[Social] = Field(default_factory=list)
+    websites: List[HttpUrl] = Field(default_factory=list)
+    email_domain: Optional[str] = None
+    details: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    custom_fields: List[CustomField] = Field(default_factory=list)
+    industry: Optional[str] = Field(None, pattern="^[A-Za-z0-9 &-]+$")
+    annual_revenue: Optional[float] = Field(None, ge=0)
+    employee_count: Optional[int] = Field(None, ge=0)
+    primary_contact_id: Optional[int] = None
+    status: Optional[str] = Field(None, pattern="^(active|inactive|prospect)$")
+
+
+class CompanyUpdate(BaseModel):
+    """Model for updating an existing company."""
+    name: Optional[str] = None
+    assignee_id: Optional[int] = None
+    address: Optional[Address] = None
+    phone_numbers: Optional[List[EmailPhone]] = None
+    socials: Optional[List[Social]] = None
+    websites: Optional[List[HttpUrl]] = None
+    email_domain: Optional[str] = None
+    details: Optional[str] = None
+    tags: Optional[List[str]] = None
+    custom_fields: Optional[List[CustomField]] = None
+    industry: Optional[str] = Field(None, pattern="^[A-Za-z0-9 &-]+$")
+    annual_revenue: Optional[float] = Field(None, ge=0)
+    employee_count: Optional[int] = Field(None, ge=0)
+    primary_contact_id: Optional[int] = None
+    status: Optional[str] = Field(None, pattern="^(active|inactive|prospect)$") 

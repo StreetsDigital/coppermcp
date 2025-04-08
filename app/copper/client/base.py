@@ -47,7 +47,9 @@ class CopperClient:
     
     def __init__(
         self,
-        auth_token: str,
+        api_user: str,
+        api_password: str,
+        user_id: str,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
         retry_delay: Optional[float] = None
@@ -55,12 +57,16 @@ class CopperClient:
         """Initialize the client.
         
         Args:
-            auth_token: The authentication token for Copper API
+            api_user: The API user for authentication
+            api_password: The API password for authentication
+            user_id: The Copper user ID
             timeout: Request timeout in seconds (default: 30)
             max_retries: Maximum number of retries for failed requests (default: 3)
             retry_delay: Delay between retries in seconds (default: 1)
         """
-        self.auth_token = auth_token
+        self.api_user = api_user
+        self.api_password = api_password
+        self.user_id = user_id
         self.timeout = timeout or self.DEFAULT_TIMEOUT
         self.max_retries = max_retries or self.MAX_RETRIES
         self.retry_delay = retry_delay or self.RETRY_DELAY
@@ -81,8 +87,10 @@ class CopperClient:
             timeout = aiohttp.ClientTimeout(total=self.timeout)
             self.session = aiohttp.ClientSession(
                 headers={
-                    "X-PW-AccessToken": self.auth_token,
+                    "X-PW-AccessToken": self.api_password,
                     "X-PW-Application": "developer_api",
+                    "X-PW-UserEmail": self.api_user,
+                    "X-PW-UserId": self.user_id,
                     "Content-Type": "application/json"
                 },
                 timeout=timeout

@@ -88,6 +88,8 @@ from typing import Dict, Any, List, Optional, AsyncIterator, TypeVar, Union
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from .base import CopperClient
 
+from app.models.copper import Person, PersonCreate, PersonUpdate
+
 T = TypeVar('T')
 
 class PaginationParams(BaseModel):
@@ -118,27 +120,131 @@ class PeopleClient:
     """Client for managing people in Copper CRM."""
     
     def __init__(self, client: CopperClient):
-        """Initialize the people client.
+        """Initialize the client.
         
         Args:
             client: The base Copper client
         """
         self.client = client
+        self.endpoint = "people"
     
-    async def list(
-        self,
-        pagination: Optional[PaginationParams] = None
-    ) -> List[Dict[str, Any]]:
-        """List people.
+    async def list(self, page_size: int = 25, page_number: int = 1) -> List[Person]:
+        """List people with pagination.
         
         Args:
-            pagination: Optional pagination parameters
+            page_size: Number of records per page
+            page_number: Page number to fetch
             
         Returns:
-            List[Dict[str, Any]]: List of people
+            List[Person]: List of people
         """
-        params = pagination.dict(exclude_none=True) if pagination else {}
-        return await self.client.get("/people", params=params)
+        params = {
+            'page_size': page_size,
+            'page': page_number
+        }
+        response = await self.client.get(self.endpoint, params=params)
+        return [Person.model_validate(item) for item in response]
+    
+    async def get(self, person_id: int) -> Person:
+        """Get a person by ID.
+        
+        Args:
+            person_id: The ID of the person to get
+            
+        Returns:
+            Person: The requested person
+        """
+        response = await self.client.get(f"{self.endpoint}/{person_id}")
+        return Person.model_validate(response)
+    
+    async def create(self, person: PersonCreate) -> Person:
+        """Create a new person.
+        
+        Args:
+            person: The person data to create
+            
+        Returns:
+            Person: The created person
+        """
+        response = await self.client.post(self.endpoint, json=person.model_dump(exclude_none=True))
+        return Person.model_validate(response)
+    
+    async def update(self, person_id: int, person: PersonUpdate) -> Person:
+        """Update a person.
+        
+        Args:
+            person_id: The ID of the person to update
+            person: The person data to update
+            
+        Returns:
+            Person: The updated person
+        """
+        response = await self.client.put(
+            f"{self.endpoint}/{person_id}",
+            json=person.model_dump(exclude_none=True)
+        )
+        return Person.model_validate(response)
+    
+    async def delete(self, person_id: int) -> None:
+        """Delete a person.
+        
+        Args:
+            person_id: The ID of the person to delete
+        """
+        await self.client.delete(f"{self.endpoint}/{person_id}")
+    
+    async def search(self, query: Dict[str, Any]) -> List[Person]:
+        """Search for people.
+        
+        Args:
+            query: Search criteria
+            
+        Returns:
+            List[Person]: List of matching people
+        """
+        response = await self.client.post(f"{self.endpoint}/search", json=query)
+        return [Person.model_validate(item) for item in response]
+    
+    async def update_custom_fields(self, person_id: int, custom_fields: List[Dict[str, Any]]) -> Person:
+        """Update custom fields for a person.
+        
+        Args:
+            person_id: The ID of the person to update
+            custom_fields: List of custom field updates
+            
+        Returns:
+            Person: The updated person
+        """
+        response = await self.client.put(
+            f"{self.endpoint}/{person_id}/custom_fields",
+            json={"custom_fields": custom_fields}
+        )
+        return Person.model_validate(response)
+    
+    async def convert_lead(self, person_id: int, details: Dict[str, Any]) -> Person:
+        """Convert a lead to a person.
+        
+        Args:
+            person_id: The ID of the lead to convert
+            details: Conversion details
+            
+        Returns:
+            Person: The converted person
+        """
+        response = await self.client.post(f"{self.endpoint}/{person_id}/convert", json=details)
+        return Person.model_validate(response)
+    
+    async def get_related(self, person_id: int, related_type: str) -> List[Dict[str, Any]]:
+        """Get related entities for a person.
+        
+        Args:
+            person_id: The ID of the person
+            related_type: Type of related entities to get
+            
+        Returns:
+            List[Dict[str, Any]]: List of related entities
+        """
+        return await self.client.get(f"{self.endpoint}/{person_id}/related/{related_type}")
     
     async def list_all(self) -> AsyncIterator[Dict[str, Any]]:
         """List all people using automatic pagination.
@@ -149,7 +255,7 @@ class PeopleClient:
         page_number = 1
         while True:
             pagination = PaginationParams(page_size=200, page_number=page_number)
-            results = await self.list(pagination)
+            results = await self.list(pagination.page_size, pagination.page_number)
             
             if not results:
                 break
@@ -158,89 +264,6 @@ class PeopleClient:
                 yield result
                 
             page_number += 1
-    
-    async def get(self, person_id: int) -> Dict[str, Any]:
-        """Get a person by ID.
-        
-        Args:
-            person_id: ID of the person
-            
-        Returns:
-            Dict[str, Any]: Person details
-            
-        Raises:
-            ValueError: If person_id is not positive
-        """
-        if person_id <= 0:
-            raise ValueError("person_id must be positive")
-            
-        return await self.client.get(f"/people/{person_id}")
-    
-    async def create(self, person: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a new person.
-        
-        Args:
-            person: Person data
-            
-        Returns:
-            Dict[str, Any]: Created person
-            
-        Raises:
-            ValueError: If required fields are missing
-        """
-        if not person.get("name"):
-            raise ValueError("name is required")
-            
-        return await self.client.post("/people", json=person)
-    
-    async def update(self, person_id: int, person: Dict[str, Any]) -> Dict[str, Any]:
-        """Update a person.
-        
-        Args:
-            person_id: ID of the person to update
-            person: Updated person data
-            
-        Returns:
-            Dict[str, Any]: Updated person
-            
-        Raises:
-            ValueError: If person_id is not positive
-        """
-        if person_id <= 0:
-            raise ValueError("person_id must be positive")
-            
-        return await self.client.put(f"/people/{person_id}", json=person)
-    
-    async def delete(self, person_id: int) -> None:
-        """Delete a person.
-        
-        Args:
-            person_id: ID of the person to delete
-            
-        Raises:
-            ValueError: If person_id is not positive
-        """
-        if person_id <= 0:
-            raise ValueError("person_id must be positive")
-            
-        await self.client.delete(f"/people/{person_id}")
-    
-    async def search(self, query: Union[Dict[str, Any], SearchQuery]) -> List[Dict[str, Any]]:
-        """Search for people.
-        
-        Args:
-            query: Search criteria, either as a dict or SearchQuery model
-            
-        Returns:
-            List[Dict[str, Any]]: Matching people
-            
-        Raises:
-            ValueError: If query validation fails
-        """
-        if isinstance(query, dict):
-            query = SearchQuery(**query)
-            
-        return await self.client.post("/people/search", json=query.dict(exclude_none=True))
     
     async def bulk_create(self, people: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Create multiple people in one request.

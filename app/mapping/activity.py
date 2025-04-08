@@ -3,16 +3,103 @@ from typing import Dict, Any, List, Optional, Union
 from datetime import datetime, timezone
 
 from app.mapping.transform import BaseTransformer
-from app.models.copper import Activity, ActivityCreate
+from app.models.copper import Activity, ActivityType, CustomField
 from app.models.mcp import MCPActivity
 
-class ActivityTransformer(BaseTransformer[Activity, MCPActivity]):
-    """Transformer for Copper Activity entities."""
+class ActivityTransformer(BaseTransformer):
+    """Transformer for Activity entities between Copper CRM and MCP."""
 
-    def __init__(self, copper_model: type[Activity], mcp_model: type[MCPActivity]):
-        """Initialize the transformer."""
-        super().__init__(copper_model=copper_model, mcp_model=mcp_model)
-        self.entity_type = "activity"
+    def transform(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform a Copper activity into MCP format.
+        
+        Args:
+            data: Activity data from Copper CRM
+            
+        Returns:
+            Transformed activity data for MCP
+            
+        Raises:
+            ValueError: If required fields are missing
+        """
+        if not data:
+            raise ValueError("Activity data cannot be empty")
+
+        activity_type = ActivityType(
+            id=str(data.get("activity_type", {}).get("id", "")),
+            category=data.get("activity_type", {}).get("category", ""),
+            name=data.get("activity_type", {}).get("name", "")
+        )
+
+        custom_fields = []
+        for field in data.get("custom_fields", []):
+            custom_fields.append(CustomField(
+                id=str(field.get("custom_field_definition_id", "")),
+                value=field.get("value", "")
+            ))
+
+        activity = Activity(
+            id=str(data.get("id", "")),
+            type=activity_type,
+            details=data.get("details", ""),
+            activity_date=int(data.get("activity_date", 0)),
+            user_id=str(data.get("user_id", "")),
+            parent={
+                "type": data.get("parent", {}).get("type", ""),
+                "id": str(data.get("parent", {}).get("id", ""))
+            },
+            assignee_id=str(data.get("assignee_id", "")) if data.get("assignee_id") else None,
+            custom_fields=custom_fields,
+            created_at=int(data.get("created_at", 0)),
+            updated_at=int(data.get("updated_at", 0))
+        )
+
+        return activity.dict(exclude_none=True)
+
+    def reverse_transform(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform MCP activity data into Copper CRM format.
+        
+        Args:
+            data: Activity data from MCP
+            
+        Returns:
+            Transformed activity data for Copper CRM
+            
+        Raises:
+            ValueError: If required fields are missing
+        """
+        if not data:
+            raise ValueError("Activity data cannot be empty")
+
+        activity_type = data.get("type", {})
+        
+        copper_data = {
+            "activity_type": {
+                "id": int(activity_type.get("id", 0)),
+                "category": activity_type.get("category", ""),
+                "name": activity_type.get("name", "")
+            },
+            "details": data.get("details", ""),
+            "activity_date": data.get("activity_date", 0),
+            "user_id": int(data.get("user_id", 0)),
+            "parent": {
+                "type": data.get("parent", {}).get("type", ""),
+                "id": int(data.get("parent", {}).get("id", 0))
+            }
+        }
+
+        if data.get("assignee_id"):
+            copper_data["assignee_id"] = int(data["assignee_id"])
+
+        if data.get("custom_fields"):
+            copper_data["custom_fields"] = [
+                {
+                    "custom_field_definition_id": int(field["id"]),
+                    "value": field["value"]
+                }
+                for field in data["custom_fields"]
+            ]
+
+        return copper_data
 
     def _to_mcp_format(self, data: Activity) -> Dict[str, Any]:
         """Transform Copper Activity to MCP format."""

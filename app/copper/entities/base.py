@@ -34,7 +34,7 @@ class BaseEntityClient:
             'page_size': page_size,
             'page': page_number
         }
-        return self.base_client._get(self.ENDPOINT, params=params)
+        return self.base_client.get(self.ENDPOINT, params=params)
     
     def get(self, entity_id: int) -> Dict[str, Any]:
         """Get a single entity by ID.
@@ -45,7 +45,7 @@ class BaseEntityClient:
         Returns:
             Entity data
         """
-        return self.base_client._get(f"{self.ENDPOINT}/{entity_id}")
+        return self.base_client.get(f"{self.ENDPOINT}/{entity_id}")
     
     def create(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new entity.
@@ -56,7 +56,7 @@ class BaseEntityClient:
         Returns:
             Created entity data
         """
-        return self.base_client._post(self.ENDPOINT, json=data)
+        return self.base_client.post(self.ENDPOINT, json=data)
     
     def update(self, entity_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
         """Update an existing entity.
@@ -68,7 +68,7 @@ class BaseEntityClient:
         Returns:
             Updated entity data
         """
-        return self.base_client._put(f"{self.ENDPOINT}/{entity_id}", json=data)
+        return self.base_client.put(f"{self.ENDPOINT}/{entity_id}", json=data)
     
     def delete(self, entity_id: int) -> Dict[str, Any]:
         """Delete an entity.
@@ -79,7 +79,7 @@ class BaseEntityClient:
         Returns:
             Response data
         """
-        return self.base_client._delete(f"{self.ENDPOINT}/{entity_id}")
+        return self.base_client.delete(f"{self.ENDPOINT}/{entity_id}")
     
     def search(
         self,
@@ -103,4 +103,4 @@ class BaseEntityClient:
             "page_number": page_number
         })
         
-        return self.base_client._post(f"{self.ENDPOINT}/search", json=data) 
+        return self.base_client.post(f"{self.ENDPOINT}/search", json=data) 

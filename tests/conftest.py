@@ -9,12 +9,24 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.exceptions import ExceptionMiddleware
 import os
 from typing import Generator
+from unittest.mock import AsyncMock, MagicMock
 
 from app.copper.client.base import CopperClient
 from app.copper.auth import get_auth_token
 from app.copper.client.people import PeopleClient
 from app.copper.client.companies import CompaniesClient
 from app.copper.client.activities import ActivitiesClient
+from app.copper.client.opportunities import OpportunitiesClient
+from app.copper.client.tasks import TasksClient
+
+from app.mapping.person import PersonTransformer
+from app.mapping.company import CompanyTransformer
+from app.mapping.opportunity import OpportunityTransformer
+from app.mapping.activity import ActivityTransformer
+from app.mapping.task import TaskTransformer
+
+from app.models.copper import Person, Company, Opportunity, Activity, Task
+from app.models.mcp import MCPPerson, MCPCompany, MCPOpportunity, MCPActivity, MCPTask
 
 @pytest_asyncio.fixture
 async def copper_client() -> CopperClient:
@@ -137,4 +149,69 @@ def client(app: FastAPI) -> TestClient:
     Returns:
         TestClient: A configured test client
     """
-    return TestClient(app) 
+    return TestClient(app)
+
+@pytest.fixture
+def mock_base_client():
+    """Create a mock base client with async methods."""
+    client = MagicMock()
+    client.get = AsyncMock()
+    client.post = AsyncMock()
+    client.put = AsyncMock()
+    client.delete = AsyncMock()
+    return client
+
+@pytest.fixture
+def mock_copper_client():
+    """Create a mock Copper client for testing."""
+    client = MagicMock()
+    client.get = MagicMock()
+    client.post = MagicMock()
+    client.put = MagicMock()
+    client.delete = MagicMock()
+    return client
+
+@pytest.fixture
+def mock_get(mock_copper_client):
+    """Mock the get method."""
+    return mock_copper_client.get
+
+@pytest.fixture
+def mock_post(mock_copper_client):
+    """Mock the post method."""
+    return mock_copper_client.post
+
+@pytest.fixture
+def mock_put(mock_copper_client):
+    """Mock the put method."""
+    return mock_copper_client.put
+
+@pytest.fixture
+def mock_delete(mock_copper_client):
+    """Mock the delete method."""
+    return mock_copper_client.delete
+
+@pytest.fixture
+def person_transformer() -> PersonTransformer:
+    """Create a PersonTransformer instance for testing."""
+    return PersonTransformer(copper_model=Person, mcp_model=MCPPerson)
+
+@pytest.fixture
+def company_transformer() -> CompanyTransformer:
+    """Create a CompanyTransformer instance for testing."""
+    return CompanyTransformer(copper_model=Company, mcp_model=MCPCompany)
+
+@pytest.fixture
+def opportunity_transformer() -> OpportunityTransformer:
+    """Create an OpportunityTransformer instance for testing."""
+    return OpportunityTransformer(copper_model=Opportunity, mcp_model=MCPOpportunity)
+
+@pytest.fixture
+def activity_transformer() -> ActivityTransformer:
+    """Create an ActivityTransformer instance for testing."""
+    return ActivityTransformer(copper_model=Activity, mcp_model=MCPActivity)
+
+@pytest.fixture
+def task_transformer() -> TaskTransformer:
+    """Create a TaskTransformer instance for testing."""
+    return TaskTransformer(copper_model=Task, mcp_model=MCPTask) 
