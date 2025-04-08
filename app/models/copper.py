@@ -136,4 +136,74 @@ class ActivityCreate(Activity):
     """Model for creating new activities."""
     id: None = None
     date_created: None = None
-    date_modified: None = None 
+    date_modified: None = None
+
+
+class Task(BaseModel):
+    """Copper Task model."""
+    
+    id: Optional[int] = None
+    name: str
+    related_resource: Optional[Dict[str, Any]] = None
+    assignee_id: Optional[int] = None
+    due_date: Optional[int] = None  # Unix timestamp
+    reminder_date: Optional[int] = None  # Unix timestamp
+    completed_date: Optional[int] = None  # Unix timestamp
+    priority: Optional[str] = Field(None, pattern="^(none|low|medium|high)$")
+    status: Optional[str] = Field(None, pattern="^(open|completed)$")
+    details: Optional[str] = None
+    tags: Optional[List[str]] = None
+    custom_fields: Optional[List[Dict[str, Any]]] = None
+    date_created: Optional[int] = None  # Unix timestamp
+    date_modified: Optional[int] = None  # Unix timestamp
+
+
+class TaskCreate(BaseModel):
+    """Model for creating a new task."""
+    
+    name: str
+    related_resource: Optional[Dict[str, Any]] = None
+    assignee_id: Optional[int] = None
+    due_date: Optional[int] = None
+    reminder_date: Optional[int] = None
+    priority: Optional[str] = Field(None, pattern="^(none|low|medium|high)$")
+    details: Optional[str] = None
+    tags: Optional[List[str]] = None
+    custom_fields: Optional[List[Dict[str, Any]]] = None
+
+
+class TaskUpdate(BaseModel):
+    """Model for updating an existing task."""
+    
+    name: Optional[str] = None
+    related_resource: Optional[Dict[str, Any]] = None
+    assignee_id: Optional[int] = None
+    due_date: Optional[int] = None
+    reminder_date: Optional[int] = None
+    priority: Optional[str] = Field(None, pattern="^(none|low|medium|high)$")
+    status: Optional[str] = Field(None, pattern="^(open|completed)$")
+    details: Optional[str] = None
+    tags: Optional[List[str]] = None
+    custom_fields: Optional[List[Dict[str, Any]]] = None
+
+
+class PersonCreate(BaseModel):
+    """Model for creating a new person."""
+    name: str
+    prefix: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    suffix: Optional[str] = None
+    title: Optional[str] = None
+    company_name: Optional[str] = None
+    company_id: Optional[int] = None
+    emails: List[EmailPhone] = Field(default_factory=list)
+    phone_numbers: List[EmailPhone] = Field(default_factory=list)
+    socials: List[Social] = Field(default_factory=list)
+    websites: List[HttpUrl] = Field(default_factory=list)
+    address: Optional[Address] = None
+    assignee_id: Optional[int] = None
+    contact_type_id: Optional[int] = None
+    details: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    custom_fields: List[CustomField] = Field(default_factory=list) 

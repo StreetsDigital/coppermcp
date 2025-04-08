@@ -78,21 +78,23 @@ Common Patterns:
 """
 
 from typing import Dict, Any, List, Optional, AsyncIterator, Union
-from pydantic import BaseModel, Field, HttpUrl, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict, AnyHttpUrl
 from .base import CopperClient
 from ..models.companies import Company, CompanyCreate, CompanyUpdate
 
 
 class PaginationParams(BaseModel):
     """Parameters for paginated requests."""
-    page_size: Optional[int] = Field(None, ge=1, le=200)
-    page_number: Optional[int] = Field(None, ge=1)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    page_number: Optional[int] = Field(1, ge=1)
+    page_size: Optional[int] = Field(20, ge=1, le=200)
 
-    @validator('page_size')
-    def validate_page_size(cls, v: Optional[int]) -> Optional[int]:
+    @field_validator('page_size')
+    @classmethod
+    def validate_page_size(cls, v: int) -> int:
         """Validate page size is within API limits."""
-        if v is not None and v > 200:
-            raise ValueError("Maximum page size is 200")
+        if v > 200:
+            raise ValueError("page_size cannot exceed 200")
         return v
 
 class SearchQuery(BaseModel):
@@ -100,15 +102,16 @@ class SearchQuery(BaseModel):
     query: Optional[str] = None
     name: Optional[str] = None
     industry: Optional[str] = None
-    website: Optional[HttpUrl] = None
+    website: Optional[AnyHttpUrl] = None
     assignee_id: Optional[int] = Field(None, gt=0)
     tags: Optional[List[str]] = None
     custom_fields: Optional[List[Dict[str, Any]]] = None
 
-    @validator('website', pre=True)
-    def ensure_website_protocol(cls, v: Optional[str]) -> Optional[str]:
+    @field_validator('website', mode='before')
+    @classmethod
+    def validate_website(cls, v: Optional[str]) -> Optional[str]:
         """Ensure website URLs have a protocol."""
-        if v and isinstance(v, str) and not v.startswith(('http://', 'https://')):
+        if v and not v.startswith(('http://', 'https://')):
             return f'https://{v}'
         return v
 

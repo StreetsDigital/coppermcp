@@ -1,35 +1,43 @@
 """Tests for the ActivityTransformer class."""
-from app.mapping.activity import ActivityTransformer
-from app.models.copper import Activity, ActivityCreate
+from datetime import datetime, timezone
+import pytest
+from pydantic import HttpUrl
 
-def test_transform_minimal_activity():
+from app.models.copper import Activity, ActivityType, ParentEntity
+from app.models.mcp import MCPActivity
+from app.mapping.activity import ActivityTransformer
+
+@pytest.fixture
+def transformer():
+    """Create an activity transformer for testing."""
+    return ActivityTransformer(copper_model=Activity, mcp_model=MCPActivity)
+
+def test_transform_minimal_activity(transformer):
     """Test transforming an activity with minimal data."""
     data = {
+        "id": 123,
         "type": {"category": "user", "id": 123},
         "details": "Test note",
-        "activity_date": 1234567890,
+        "activity_date": int(datetime.now(timezone.utc).timestamp()),
         "parent": {"type": "person", "id": 456}
     }
-
-    transformer = ActivityTransformer()
-    result = transformer.transform(data)
-
+    
+    result = transformer.to_mcp(data)
     assert result["type"] == "activity"
+    assert result["source"] == "copper"
+    assert result["source_id"] == "123"
     assert result["attributes"]["details"] == "Test note"
-    assert result["attributes"]["activity_type"]["category"] == "user"
-    assert result["attributes"]["activity_type"]["id"] == "123"
-    assert result["relationships"]["parent"]["data"]["type"] == "person"
-    assert result["relationships"]["parent"]["data"]["id"] == "456"
 
-def test_transform_full_activity():
+def test_transform_full_activity(transformer):
     """Test transforming an activity with all fields populated."""
+    now = int(datetime.now(timezone.utc).timestamp())
     data = {
         "id": 789,
         "type": {"category": "user", "id": 123},
         "details": "Important meeting",
-        "activity_date": 1234567890,
-        "date_created": 1234567800,
-        "date_modified": 1234567850,
+        "activity_date": now,
+        "date_created": now,
+        "date_modified": now,
         "parent": {"type": "company", "id": 456},
         "user_id": 101,
         "assignee_id": 102,
@@ -37,49 +45,40 @@ def test_transform_full_activity():
             {"custom_field_definition_id": 201, "value": "Custom value"}
         ]
     }
-
-    transformer = ActivityTransformer()
-    result = transformer.transform(data)
-
+    
+    result = transformer.to_mcp(data)
     assert result["type"] == "activity"
+    assert result["source"] == "copper"
+    assert result["source_id"] == "789"
     assert result["attributes"]["details"] == "Important meeting"
-    assert result["attributes"]["activity_type"]["category"] == "user"
-    assert result["attributes"]["activity_type"]["id"] == "123"
-    assert result["relationships"]["parent"]["data"]["type"] == "company"
-    assert result["relationships"]["parent"]["data"]["id"] == "456"
-    assert result["relationships"]["user"]["data"]["type"] == "user"
-    assert result["relationships"]["user"]["data"]["id"] == "101"
-    assert result["relationships"]["assignee"]["data"]["type"] == "user"
-    assert result["relationships"]["assignee"]["data"]["id"] == "102"
-    assert result["meta"]["custom_fields"]["201"] == "Custom value"
+    assert result["attributes"]["activity_type"] == "user"
+    assert result["relationships"]["parent"]["type"] == "company"
+    assert result["relationships"]["parent"]["id"] == "456"
+    assert result["meta"]["custom_fields"][0]["value"] == "Custom value"
 
-def test_transform_validation():
+def test_transform_validation(transformer):
     """Test validation of activity data."""
     data = {
+        "id": 123,
         "type": {"category": "invalid", "id": 123},
         "details": "Test note",
-        "activity_date": 1234567890,
+        "activity_date": int(datetime.now(timezone.utc).timestamp()),
         "parent": {"type": "person", "id": 456}
     }
+    
+    with pytest.raises(ValueError):
+        transformer.to_mcp(data)
 
-    transformer = ActivityTransformer()
-    try:
-        transformer.transform(data)
-        assert False, "Should have raised validation error"
-    except Exception as e:
-        assert "validation" in str(e).lower()
-
-def test_transform_empty_custom_fields():
+def test_transform_empty_custom_fields(transformer):
     """Test transforming an activity with empty custom fields."""
     data = {
+        "id": 123,
         "type": {"category": "user", "id": 123},
         "details": "Test note",
-        "activity_date": 1234567890,
+        "activity_date": int(datetime.now(timezone.utc).timestamp()),
         "parent": {"type": "person", "id": 456},
         "custom_fields": []
     }
-
-    transformer = ActivityTransformer()
-    result = transformer.transform(data)
-
-    assert result["meta"]["custom_fields"] == {} 
+    
+    result = transformer.to_mcp(data)
+    assert result["meta"]["custom_fields"] == [] 

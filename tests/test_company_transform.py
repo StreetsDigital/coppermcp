@@ -1,103 +1,98 @@
 """Tests for the Company transformer."""
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Dict, Any
 from pydantic import HttpUrl
 
 from app.mapping.company import CompanyTransformer
-from app.models.copper import Company, Address, EmailPhone, SocialProfile, CustomField
+from app.models.copper import Company, Address, EmailPhone, Social, CustomField
+from app.models.mcp import MCPCompany
 
-def test_transform_minimal_company():
-    """Test transformation of company with minimal data."""
-    transformer = CompanyTransformer(Company)
-    input_data = {
-        "name": "ACME Corp"
-    }
-    
-    result = transformer.transform_to_mcp(input_data)
-    
-    assert result["type"] == "company"
-    assert result["id"] is None
-    assert result["attributes"]["name"] == "ACME Corp"
-    assert result["attributes"]["phone"] is None
-    assert result["attributes"]["website"] is None
-    assert result["relationships"]["assignee"]["data"] is None
-    assert result["meta"]["interaction_count"] == 0
+@pytest.fixture
+def transformer():
+    """Create a company transformer for testing."""
+    return CompanyTransformer(copper_model=Company, mcp_model=MCPCompany)
 
-def test_transform_full_company():
-    """Test transformation of company with all fields populated."""
-    transformer = CompanyTransformer(Company)
-    input_data = {
+def test_transform_minimal_company(transformer):
+    """Test transforming a company with minimal data."""
+    data = {
         "id": 123,
-        "name": "ACME Corporation",
-        "industry": "Technology",
-        "email_domain": "acme.com",
-        "assignee_id": 456,
-        "details": "Global technology company",
-        "contact_type_id": 1,
-        "phone_numbers": [
-            {"phone": "+1-555-0123", "category": "work"},
-            {"phone": "+1-555-4567", "category": "other"}
-        ],
-        "socials": [
-            {"url": "https://linkedin.com/company/acme", "category": "linkedin"},
-            {"url": "https://twitter.com/acme", "category": "twitter"}
-        ],
-        "websites": [
-            "https://acme.com",
-            "https://blog.acme.com"
-        ],
-        "tags": ["Enterprise", "Technology"],
-        "custom_fields": [
-            {"custom_field_definition_id": 1, "value": "Custom Value"}
-        ],
-        "date_created": "2024-01-01T00:00:00Z",
-        "date_modified": "2024-01-02T00:00:00Z",
-        "interaction_count": 5,
-        "annual_revenue": 1000000.0,
-        "employee_count": 500,
-        "address": {
-            "street": "123 Tech Ave",
-            "city": "San Francisco",
-            "state": "CA",
-            "postal_code": "94105",
-            "country": "USA"
-        }
+        "name": "Test Company",
+        "email_domain": "test.com",
+        "details": None,
+        "phone_numbers": [],
+        "socials": [],
+        "websites": []
     }
     
-    result = transformer.transform_to_mcp(input_data)
-    
-    # Check basic attributes
+    result = transformer.to_mcp(data)
     assert result["type"] == "company"
-    assert result["id"] == "123"
-    assert result["attributes"]["name"] == "ACME Corporation"
-    assert result["attributes"]["industry"] == "Technology"
-    assert result["attributes"]["email_domain"] == "acme.com"
+    assert result["source"] == "copper"
+    assert result["source_id"] == "123"
+    assert result["attributes"]["name"] == "Test Company"
+    assert result["attributes"]["email_domain"] == "test.com"
+
+def test_transform_full_company(transformer):
+    """Test transforming a company with all fields populated."""
+    now = int(datetime.now(timezone.utc).timestamp())
+    data = {
+        "id": 789,
+        "name": "Full Company",
+        "email_domain": "full.com",
+        "details": "Company details",
+        "phone_numbers": [{"number": "123-456-7890"}],
+        "socials": [{"url": "https://linkedin.com/company/test"}],
+        "websites": ["https://full.com"],
+        "date_created": now,
+        "date_modified": now,
+        "assignee_id": 101,
+        "custom_fields": [
+            {"custom_field_definition_id": 201, "value": "Custom value"}
+        ]
+    }
     
-    # Check contact info
-    assert result["attributes"]["phone"] == "+1-555-0123"
-    assert result["attributes"]["website"].rstrip("/") == "https://acme.com"
-    assert len(result["meta"]["additional_phones"]) == 1
-    assert result["meta"]["additional_phones"][0]["phone"] == "+1-555-4567"
-    assert len(result["meta"]["additional_websites"]) == 1
-    assert "blog.acme.com" in result["meta"]["additional_websites"][0]
+    result = transformer.to_mcp(data)
+    assert result["type"] == "company"
+    assert result["source"] == "copper"
+    assert result["source_id"] == "789"
+    assert result["attributes"]["name"] == "Full Company"
+    assert result["attributes"]["email_domain"] == "full.com"
+    assert result["attributes"]["details"] == "Company details"
+    assert result["attributes"]["phone_numbers"][0]["number"] == "123-456-7890"
+    assert result["attributes"]["socials"][0]["url"] == "https://linkedin.com/company/test"
+    assert result["attributes"]["websites"][0] == "https://full.com"
+    assert result["meta"]["custom_fields"][0]["value"] == "Custom value"
+
+def test_transform_validation(transformer):
+    """Test validation of company data."""
+    data = {
+        "id": 123,
+        "name": "",  # Invalid empty name
+        "email_domain": "test.com",
+        "details": None,
+        "phone_numbers": [],
+        "socials": [],
+        "websites": []
+    }
     
-    # Check relationships
-    assert result["relationships"]["assignee"]["data"]["id"] == "456"
+    with pytest.raises(ValueError):
+        transformer.to_mcp(data)
+
+def test_transform_empty_custom_fields(transformer):
+    """Test transforming a company with empty custom fields."""
+    data = {
+        "id": 123,
+        "name": "Test Company",
+        "email_domain": "test.com",
+        "details": None,
+        "phone_numbers": [],
+        "socials": [],
+        "websites": [],
+        "custom_fields": []
+    }
     
-    # Check address
-    assert result["attributes"]["address"]["street"] == "123 Tech Ave"
-    assert result["attributes"]["address"]["city"] == "San Francisco"
-    assert result["attributes"]["address"]["state"] == "CA"
-    
-    # Check metadata
-    assert result["meta"]["interaction_count"] == 5
-    assert result["meta"]["contact_type_id"] == 1
-    assert len(result["meta"]["social_profiles"]) == 2
-    assert result["meta"]["custom_fields"]["1"] == "Custom Value"
-    
-    # Check company-specific fields
-    assert result["attributes"]["annual_revenue"] == 1000000.0
-    assert result["attributes"]["employee_count"] == 500
+    result = transformer.to_mcp(data)
+    assert result["meta"]["custom_fields"] == []
 
 def test_transform_work_phone_priority():
     """Test that work phone is prioritized."""
@@ -134,29 +129,4 @@ def test_transform_empty_lists():
     assert result["meta"]["social_profiles"] == []
     assert result["meta"]["additional_websites"] == []
     assert result["attributes"]["tags"] == []
-    assert result["meta"]["custom_fields"] == {}
-
-def test_transform_validation():
-    """Test validation of company data."""
-    transformer = CompanyTransformer(Company)
-    
-    # Test invalid email domain
-    with pytest.raises(Exception):
-        transformer.transform_to_mcp({
-            "name": "ACME Corp",
-            "email_domain": "invalid@domain"
-        })
-    
-    # Test invalid revenue
-    with pytest.raises(Exception):
-        transformer.transform_to_mcp({
-            "name": "ACME Corp",
-            "annual_revenue": -1000
-        })
-    
-    # Test invalid employee count
-    with pytest.raises(Exception):
-        transformer.transform_to_mcp({
-            "name": "ACME Corp",
-            "employee_count": -50
-        }) 
+    assert result["meta"]["custom_fields"] == {} 

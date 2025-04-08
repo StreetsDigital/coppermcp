@@ -1,6 +1,6 @@
-# Copper MCP Server
+# CopperMCP
 
-A server implementation for transforming Copper CRM data to MCP (Model Context Protocol) format.
+A Model Context Protocol (MCP) adapter for Copper CRM - transforms and serves Copper data in MCP format.
 
 ## Features
 

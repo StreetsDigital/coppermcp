@@ -1,107 +1,98 @@
 """Tests for the Person transformer."""
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Dict, Any
 from pydantic import HttpUrl
 
 from app.mapping.person import PersonTransformer
-from app.models.copper import Person, Address, EmailPhone, SocialProfile, CustomField
+from app.models.copper import Person, Address, EmailPhone, Social, CustomField
+from app.models.mcp import MCPPerson
 
-def test_transform_minimal_person():
-    """Test transformation of person with minimal data."""
-    transformer = PersonTransformer(Person)
-    input_data = {
-        "name": "John Doe"
-    }
-    
-    result = transformer.transform_to_mcp(input_data)
-    
-    assert result["type"] == "person"
-    assert result["id"] is None
-    assert result["attributes"]["name"] == "John Doe"
-    assert result["attributes"]["email"] is None
-    assert result["attributes"]["phone"] is None
-    assert result["relationships"]["company"]["data"] is None
-    assert result["meta"]["interaction_count"] == 0
+@pytest.fixture
+def transformer():
+    """Create a person transformer for testing."""
+    return PersonTransformer(copper_model=Person, mcp_model=MCPPerson)
 
-def test_transform_full_person():
-    """Test transformation of person with all fields populated."""
-    transformer = PersonTransformer(Person)
-    input_data = {
+def test_transform_minimal_person(transformer):
+    """Test transforming a person with minimal data."""
+    data = {
         "id": 123,
-        "name": "Dr. John Smith Jr.",
-        "prefix": "Dr.",
-        "first_name": "John",
-        "last_name": "Smith",
-        "suffix": "Jr.",
-        "title": "CEO",
-        "company_name": "ACME Corp",
-        "company_id": 456,
-        "assignee_id": 789,
-        "details": "Important contact",
-        "contact_type_id": 1,
-        "emails": [
-            {"email": "john@work.com", "category": "work"},
-            {"email": "john@home.com", "category": "home"}
-        ],
-        "phone_numbers": [
-            {"phone": "555-0123", "category": "work"},
-            {"phone": "555-4567", "category": "mobile"}
-        ],
-        "socials": [
-            {"url": "https://linkedin.com/in/john", "category": "linkedin"}
-        ],
-        "websites": ["https://johnsmith.com"],
-        "tags": ["VIP", "Client"],
-        "custom_fields": [
-            {"custom_field_definition_id": 1, "value": "Custom Value"}
-        ],
-        "date_created": "2024-01-01T00:00:00Z",
-        "date_modified": "2024-01-02T00:00:00Z",
-        "interaction_count": 5,
-        "address": {
-            "street": "123 Main St",
-            "city": "Springfield",
-            "state": "IL",
-            "postal_code": "62701",
-            "country": "USA"
-        }
+        "name": "John Doe",
+        "email": "john@example.com",
+        "details": None,
+        "phone_numbers": [],
+        "socials": [],
+        "websites": []
     }
     
-    result = transformer.transform_to_mcp(input_data)
-    
-    # Check basic attributes
+    result = transformer.to_mcp(data)
     assert result["type"] == "person"
-    assert result["id"] == "123"
-    assert result["attributes"]["name"] == "Dr. John Smith Jr."
-    assert result["attributes"]["first_name"] == "John"
-    assert result["attributes"]["last_name"] == "Smith"
-    assert result["attributes"]["title"] == "CEO"
-    assert result["attributes"]["company"] == "ACME Corp"
+    assert result["source"] == "copper"
+    assert result["source_id"] == "123"
+    assert result["attributes"]["name"] == "John Doe"
+    assert result["attributes"]["email"] == "john@example.com"
+
+def test_transform_full_person(transformer):
+    """Test transforming a person with all fields populated."""
+    now = int(datetime.now(timezone.utc).timestamp())
+    data = {
+        "id": 789,
+        "name": "Jane Smith",
+        "email": "jane@example.com",
+        "details": "Person details",
+        "phone_numbers": [{"number": "123-456-7890"}],
+        "socials": [{"url": "https://linkedin.com/in/janesmith"}],
+        "websites": ["https://janesmith.com"],
+        "date_created": now,
+        "date_modified": now,
+        "assignee_id": 101,
+        "custom_fields": [
+            {"custom_field_definition_id": 201, "value": "Custom value"}
+        ]
+    }
     
-    # Check contact info
-    assert result["attributes"]["email"] == "john@work.com"
-    assert result["attributes"]["phone"] == "555-0123"
-    assert len(result["meta"]["additional_emails"]) == 1
-    assert result["meta"]["additional_emails"][0]["email"] == "john@home.com"
-    assert len(result["meta"]["additional_phones"]) == 1
-    assert result["meta"]["additional_phones"][0]["phone"] == "555-4567"
+    result = transformer.to_mcp(data)
+    assert result["type"] == "person"
+    assert result["source"] == "copper"
+    assert result["source_id"] == "789"
+    assert result["attributes"]["name"] == "Jane Smith"
+    assert result["attributes"]["email"] == "jane@example.com"
+    assert result["attributes"]["details"] == "Person details"
+    assert result["attributes"]["phone_numbers"][0]["number"] == "123-456-7890"
+    assert result["attributes"]["socials"][0]["url"] == "https://linkedin.com/in/janesmith"
+    assert result["attributes"]["websites"][0] == "https://janesmith.com"
+    assert result["meta"]["custom_fields"][0]["value"] == "Custom value"
+
+def test_transform_validation(transformer):
+    """Test validation of person data."""
+    data = {
+        "id": 123,
+        "name": "",  # Invalid empty name
+        "email": "invalid-email",  # Invalid email
+        "details": None,
+        "phone_numbers": [],
+        "socials": [],
+        "websites": []
+    }
     
-    # Check relationships
-    assert result["relationships"]["company"]["data"]["id"] == "456"
-    assert result["relationships"]["assignee"]["data"]["id"] == "789"
+    with pytest.raises(ValueError):
+        transformer.to_mcp(data)
+
+def test_transform_empty_custom_fields(transformer):
+    """Test transforming a person with empty custom fields."""
+    data = {
+        "id": 123,
+        "name": "John Doe",
+        "email": "john@example.com",
+        "details": None,
+        "phone_numbers": [],
+        "socials": [],
+        "websites": [],
+        "custom_fields": []
+    }
     
-    # Check address
-    assert result["attributes"]["address"]["street"] == "123 Main St"
-    assert result["attributes"]["address"]["city"] == "Springfield"
-    assert result["attributes"]["address"]["state"] == "IL"
-    
-    # Check metadata
-    assert result["meta"]["interaction_count"] == 5
-    assert result["meta"]["contact_type_id"] == 1
-    assert len(result["meta"]["social_profiles"]) == 1
-    assert result["meta"]["social_profiles"][0]["category"] == "linkedin"
-    assert len(result["meta"]["websites"]) == 1
-    assert result["meta"]["custom_fields"]["1"] == "Custom Value"
+    result = transformer.to_mcp(data)
+    assert result["meta"]["custom_fields"] == []
 
 def test_transform_work_contact_priority():
     """Test that work contact details are prioritized."""

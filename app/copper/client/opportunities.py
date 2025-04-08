@@ -94,7 +94,7 @@ Common Patterns:
 
 from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from .base import CopperClient, CopperAPIError
 
 from ..models.opportunities import Opportunity, OpportunityCreate, OpportunityUpdate
@@ -107,9 +107,8 @@ class PaginationParams(BaseModel):
     page_number: Optional[int] = Field(None, gt=0)
 
 
-class SearchQuery(BaseModel):
-    """Parameters for searching opportunities."""
-    
+class OpportunitySearchQuery(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     name: Optional[str] = None
     company_id: Optional[int] = Field(None, gt=0)
     pipeline_id: Optional[int] = Field(None, gt=0)
@@ -122,27 +121,26 @@ class SearchQuery(BaseModel):
     assignee_id: Optional[int] = Field(None, gt=0)
     tags: Optional[List[str]] = None
     
-    @validator("max_value")
-    def max_value_greater_than_min(cls, v, values):
-        """Validate that max_value is greater than min_value if both are provided."""
-        if v is not None and values.get("min_value") is not None:
-            if v <= values["min_value"]:
-                raise ValueError("max_value must be greater than min_value")
-        return v
-    
-    @validator("close_date_end")
-    def end_date_after_start(cls, v, values):
-        """Validate that end date is after start date if both are provided."""
-        if v is not None and values.get("close_date_start") is not None:
-            if v <= values["close_date_start"]:
-                raise ValueError("close_date_end must be after close_date_start")
+    @field_validator("max_value")
+    @classmethod
+    def validate_max_value(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v < 0:
+            raise ValueError("max_value must be non-negative")
         return v
 
-    @validator("company_id", "pipeline_id", "pipeline_stage_id", "assignee_id")
-    def validate_positive_ids(cls, v: Optional[int]) -> Optional[int]:
-        """Validate that IDs are positive integers."""
-        if v is not None and v <= 0:
-            raise ValueError("ID must be positive")
+    @field_validator("close_date_end")
+    @classmethod
+    def validate_close_date_end(cls, v: Optional[datetime], values: Dict[str, Any]) -> Optional[datetime]:
+        close_date_start = values.get("close_date_start")
+        if close_date_start and v and v < close_date_start:
+            raise ValueError("close_date_end must be after close_date_start")
+        return v
+
+    @field_validator("company_id", "pipeline_id", "pipeline_stage_id", "assignee_id")
+    @classmethod
+    def validate_ids(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v < 0:
+            raise ValueError("ID fields must be non-negative")
         return v
 
 
@@ -333,17 +331,17 @@ class OpportunitiesClient:
     
     async def search(
         self,
-        query: Union[Dict[str, Any], SearchQuery]
+        query: Union[Dict[str, Any], OpportunitySearchQuery]
     ) -> List[Dict[str, Any]]:
         """Search for opportunities.
         
         Args:
-            query: Search criteria as dict or SearchQuery model
+            query: Search criteria as dict or OpportunitySearchQuery model
             
         Returns:
             List[Dict[str, Any]]: Matching opportunities
         """
-        if isinstance(query, SearchQuery):
+        if isinstance(query, OpportunitySearchQuery):
             data = query.dict(exclude_none=True)
         else:
             data = query

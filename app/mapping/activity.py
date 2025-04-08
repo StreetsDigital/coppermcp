@@ -12,68 +12,87 @@ class ActivityTransformer(BaseTransformer[Activity, MCPActivity]):
     def __init__(self, copper_model: type[Activity], mcp_model: type[MCPActivity]):
         """Initialize the transformer."""
         super().__init__(copper_model=copper_model, mcp_model=mcp_model)
+        self.entity_type = "activity"
 
-    def _to_mcp_format(self, validated_data: Activity) -> Dict[str, Any]:
-        """
-        Convert Copper Activity data to MCP format.
-
-        Args:
-            validated_data: Validated Activity model instance
-
-        Returns:
-            Dict[str, Any]: Activity data in MCP format
-        """
+    def _to_mcp_format(self, data: Activity) -> Dict[str, Any]:
+        """Transform Copper Activity to MCP format."""
         result = {
-            "type": "activity",
+            "type": self.entity_type,
             "attributes": {
-                "name": validated_data.details,  # Use details as name
-                "details": validated_data.details,
-                "activity_type": {
-                    "id": str(validated_data.type.id),  # Convert ID to string
-                    "category": validated_data.type.category
-                },
-                "activity_date": self._format_datetime(validated_data.activity_date),
-                "tags": validated_data.tags or [],
-                "created_at": self._format_datetime(validated_data.date_created),
-                "updated_at": self._format_datetime(validated_data.date_modified)
+                "details": data.details,
+                "activity_type": data.type.category if data.type else None,
+                "activity_date": data.activity_date
             },
-            "relationships": {
-                "assignee": {
-                    "data": {
-                        "type": "user",
-                        "id": str(validated_data.assignee_id)
-                    } if validated_data.assignee_id else None
-                },
-                "parent": self._get_parent_relationship(validated_data)
-            },
+            "relationships": {},
             "meta": {
-                "custom_fields": {
-                    str(f.custom_field_definition_id): f.value
-                    for f in validated_data.custom_fields
+                "custom_fields": []
+            }
+        }
+
+        # Add parent relationship if present
+        if data.parent:
+            result["relationships"]["parent"] = {
+                "data": {
+                    "type": data.parent.type,
+                    "id": str(data.parent.id)
                 }
             }
-        }
-        
+
+        # Add assignee relationship if present
+        if data.assignee_id:
+            result["relationships"]["assignee"] = {
+                "data": {
+                    "type": "user",
+                    "id": str(data.assignee_id)
+                }
+            }
+
+        # Add custom fields if present
+        if data.custom_fields:
+            result["meta"]["custom_fields"] = [
+                {
+                    "id": str(field.custom_field_definition_id),
+                    "value": field.value
+                }
+                for field in data.custom_fields
+            ]
+
         return result
 
-    def _get_parent_relationship(self, activity: Activity) -> Dict[str, Any]:
-        """Get the parent relationship data for an activity.
-        
-        Args:
-            activity: Activity model instance
-            
-        Returns:
-            Dict[str, Any]: Parent relationship data
-        """
-        if not activity.parent:
-            return {"data": None}
-            
-        return {
-            "data": {
-                "type": activity.parent.type.lower(),
-                "id": str(activity.parent.id)
-            }
+    def _to_copper_format(self, data: MCPActivity) -> Dict[str, Any]:
+        """Transform MCP Activity to Copper format."""
+        result = {
+            "details": data.attributes.get("details"),
+            "type": {
+                "category": data.attributes.get("activity_type"),
+                "id": "123"  # Default ID for user activity type
+            },
+            "activity_date": data.attributes.get("activity_date")
         }
+
+        # Add parent relationship if present
+        if "parent" in data.relationships:
+            parent = data.relationships["parent"]["data"]
+            result["parent"] = {
+                "type": parent["type"],
+                "id": int(parent["id"])
+            }
+
+        # Add assignee if present
+        if "assignee" in data.relationships:
+            result["assignee_id"] = int(data.relationships["assignee"]["data"]["id"])
+
+        # Add custom fields if present
+        if data.meta and "custom_fields" in data.meta:
+            result["custom_fields"] = [
+                {
+                    "custom_field_definition_id": int(field["id"]),
+                    "value": field["value"]
+                }
+                for field in data.meta["custom_fields"]
+            ]
+
+        return result
 
     def _validate_data(self, data: Dict[str, Any]) -> Activity:
         """

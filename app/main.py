@@ -21,9 +21,10 @@ from .mapping.person import PersonTransformer
 from .mapping.company import CompanyTransformer
 from .mapping.opportunity import OpportunityTransformer
 from .mapping.activity import ActivityTransformer
+from .mapping.task import TaskTransformer
 
-from .models.copper import Person, Company, Opportunity, Activity
-from .models.mcp import MCPPerson, MCPCompany, MCPOpportunity, MCPActivity
+from .models.copper import Person, Company, Opportunity, Activity, Task
+from .models.mcp import MCPPerson, MCPCompany, MCPOpportunity, MCPActivity, MCPTask
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -57,6 +58,7 @@ person_transformer = PersonTransformer(copper_model=Person, mcp_model=MCPPerson)
 company_transformer = CompanyTransformer(copper_model=Company, mcp_model=MCPCompany)
 opportunity_transformer = OpportunityTransformer(copper_model=Opportunity, mcp_model=MCPOpportunity)
 activity_transformer = ActivityTransformer(copper_model=Activity, mcp_model=MCPActivity)
+task_transformer = TaskTransformer(copper_model=Task, mcp_model=MCPTask)
 
 async def get_copper_client() -> CopperClient:
     """Get a configured Copper client.
@@ -107,7 +109,7 @@ async def search(
     
     Args:
         query: Search query string to match against entities
-        entity_type: Optional entity type to filter by (person, company, opportunity, activity)
+        entity_type: Optional entity type to filter by (person, company, opportunity, activity, task)
         client: Copper client from dependency injection
         
     Returns:
@@ -124,6 +126,7 @@ async def search(
     companies_client = CompaniesClient(client)
     opportunities_client = OpportunitiesClient(client)
     activities_client = ActivitiesClient(client)
+    tasks_client = TasksClient(client)
     
     try:
         # Search people
@@ -173,6 +176,18 @@ async def search(
                 ])
             except Exception as e:
                 logger.error(f"Error searching activities: {str(e)}")
+
+        # Search tasks
+        if not entity_type or entity_type == "task":
+            try:
+                tasks = await tasks_client.search(search_query)
+                logger.info(f"Found {len(tasks)} tasks matching query: {query}")
+                results.extend([
+                    task_transformer.to_mcp(task)
+                    for task in tasks
+                ])
+            except Exception as e:
+                logger.error(f"Error searching tasks: {str(e)}")
             
         return results
         
@@ -377,4 +392,137 @@ async def get_activity(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Unexpected error: {str(e)}"
+        )
+
+@app.get("/tasks/{task_id}")
+async def get_task(
+    task_id: int,
+    client: CopperClient = Depends(get_copper_client)
+) -> MCPTask:
+    """Get a task by ID.
+    
+    Args:
+        task_id: ID of the task to retrieve
+        client: Copper client from dependency injection
+        
+    Returns:
+        MCPTask: Task in MCP format
+        
+    Raises:
+        HTTPException: If task not found or other error occurs
+    """
+    try:
+        tasks_client = TasksClient(client)
+        task = await tasks_client.get(task_id)
+        return task_transformer.to_mcp(task)
+    except CopperAPIError as e:
+        if "404" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task {task_id} not found"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Error from Copper API: {str(e)}"
+        )
+
+@app.post("/tasks")
+async def create_task(
+    task: MCPTask,
+    client: CopperClient = Depends(get_copper_client)
+) -> MCPTask:
+    """Create a new task.
+    
+    Args:
+        task: Task data in MCP format
+        client: Copper client from dependency injection
+        
+    Returns:
+        MCPTask: Created task in MCP format
+        
+    Raises:
+        HTTPException: If creation fails
+    """
+    try:
+        tasks_client = TasksClient(client)
+        copper_task = task_transformer.to_copper(task)
+        created = await tasks_client.create(copper_task)
+        return task_transformer.to_mcp(created)
+    except CopperAPIError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Error from Copper API: {str(e)}"
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
+
+@app.put("/tasks/{task_id}")
+async def update_task(
+    task_id: int,
+    task: MCPTask,
+    client: CopperClient = Depends(get_copper_client)
+) -> MCPTask:
+    """Update a task.
+    
+    Args:
+        task_id: ID of the task to update
+        task: Updated task data in MCP format
+        client: Copper client from dependency injection
+        
+    Returns:
+        MCPTask: Updated task in MCP format
+        
+    Raises:
+        HTTPException: If update fails or task not found
+    """
+    try:
+        tasks_client = TasksClient(client)
+        copper_task = task_transformer.to_copper(task)
+        updated = await tasks_client.update(task_id, copper_task)
+        return task_transformer.to_mcp(updated)
+    except CopperAPIError as e:
+        if "404" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task {task_id} not found"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Error from Copper API: {str(e)}"
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
+
+@app.delete("/tasks/{task_id}")
+async def delete_task(
+    task_id: int,
+    client: CopperClient = Depends(get_copper_client)
+) -> None:
+    """Delete a task.
+    
+    Args:
+        task_id: ID of the task to delete
+        client: Copper client from dependency injection
+        
+    Raises:
+        HTTPException: If deletion fails or task not found
+    """
+    try:
+        tasks_client = TasksClient(client)
+        await tasks_client.delete(task_id)
+    except CopperAPIError as e:
+        if "404" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task {task_id} not found"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Error from Copper API: {str(e)}"
         ) 

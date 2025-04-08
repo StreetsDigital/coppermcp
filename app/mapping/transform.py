@@ -4,7 +4,7 @@ This module provides the base transformation logic and utilities for converting
 Copper CRM data into MCP (Model Context Protocol) format.
 """
 from typing import Dict, Any, List, Optional, TypeVar, Generic, Type, Union
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel
 
 from app.models.mcp import MCPBase, MCPAttributes, MCPMeta, MCPRelationship
@@ -66,10 +66,21 @@ class BaseTransformer(Generic[CopperT, MCPT]):
         """
         raise NotImplementedError("Subclasses must implement _to_mcp_format")
     
-    def _format_datetime(self, dt: Optional[datetime]) -> Optional[str]:
-        """Format a datetime to ISO8601 format with UTC timezone."""
+    def _format_datetime(self, dt: Optional[Union[datetime, int]]) -> Optional[str]:
+        """Format a datetime or Unix timestamp to ISO8601 format with UTC timezone.
+        
+        Args:
+            dt: Either a datetime object or Unix timestamp (int)
+            
+        Returns:
+            ISO8601 formatted string or None if input is None
+        """
         if dt is None:
             return None
+            
+        if isinstance(dt, int):
+            dt = datetime.fromtimestamp(dt, timezone.utc)
+            
         return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     
     def _get_primary_contact(self, contacts: list) -> Optional[str]:

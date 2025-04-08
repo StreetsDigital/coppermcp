@@ -125,4 +125,24 @@ class MCPOpportunity(MCPBase):
 class MCPActivity(MCPBase):
     """MCP Activity entity."""
     type: Literal["activity"]
-    attributes: MCPActivityAttributes 
+    attributes: MCPActivityAttributes
+
+
+class MCPTask(BaseModel):
+    """MCP Task model."""
+    
+    id: str  # Copper task ID as string
+    type: str = "task"
+    name: str
+    description: Optional[str] = None
+    status: str = "open"  # open, completed
+    priority: str = "none"  # none, low, medium, high
+    due_date: Optional[datetime] = None
+    reminder_date: Optional[datetime] = None
+    completed_date: Optional[datetime] = None
+    assignee: Optional[str] = None  # Assignee ID as string
+    related_to: Optional[Dict[str, str]] = None  # {"type": "person", "id": "123"}
+    tags: Optional[List[str]] = None
+    metadata: Optional[Dict[str, Any]] = None  # For custom fields
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None 

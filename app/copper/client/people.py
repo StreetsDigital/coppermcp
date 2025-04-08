@@ -85,21 +85,23 @@ Common Patterns:
 """
 
 from typing import Dict, Any, List, Optional, AsyncIterator, TypeVar, Union
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from .base import CopperClient
 
 T = TypeVar('T')
 
 class PaginationParams(BaseModel):
     """Parameters for paginated requests."""
-    page_size: Optional[int] = Field(None, ge=1, le=200)
-    page_number: Optional[int] = Field(None, ge=1)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    page_number: Optional[int] = Field(1, ge=1)
+    page_size: Optional[int] = Field(20, ge=1, le=200)
 
-    @validator('page_size')
-    def validate_page_size(cls, v: Optional[int]) -> Optional[int]:
+    @field_validator('page_size')
+    @classmethod
+    def validate_page_size(cls, v: int) -> int:
         """Validate page size is within API limits."""
-        if v is not None and v > 200:
-            raise ValueError("Maximum page size is 200")
+        if v > 200:
+            raise ValueError("page_size cannot exceed 200")
         return v
 
 class SearchQuery(BaseModel):
