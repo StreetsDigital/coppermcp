@@ -4,7 +4,7 @@ import pytest
 from pydantic import HttpUrl
 
 from app.models.copper import Activity as CopperActivity, ActivityType, ParentEntity, CustomField
-from app.models.mcp import Activity as MCPActivity
+from app.models.mcp import MCPActivity
 from app.mapping.activity import ActivityTransformer
 
 @pytest.fixture

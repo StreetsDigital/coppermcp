@@ -1,6 +1,6 @@
 """Tests for data transformation between Copper and MCP formats."""
 import pytest
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Literal, Optional
 from pydantic import BaseModel, Field, ValidationError
 
@@ -60,8 +60,8 @@ def test_transform_minimal_data():
         "required_str": "test",
         "integer_value": 1,
         "nested_dict": {},
-        "date_created": datetime.now(UTC),
-        "date_modified": datetime.now(UTC)
+        "date_created": datetime.now(timezone.utc),
+        "date_modified": datetime.now(timezone.utc)
     }
     
     result = transformer.to_mcp(input_data)
@@ -78,7 +78,7 @@ def test_transform_minimal_data():
 def test_transform_full_data():
     """Test transformation with all fields populated."""
     transformer = ComplexTransformer()
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     input_data = {
         "id": 2,
         "required_str": "test",
@@ -102,7 +102,7 @@ def test_transform_full_data():
 def test_transform_empty_string():
     """Test handling of empty strings."""
     transformer = ComplexTransformer()
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     input_data = {
         "id": 3,
         "required_str": "",  # Empty string
@@ -118,7 +118,7 @@ def test_transform_empty_string():
 def test_transform_whitespace_string():
     """Test handling of whitespace strings."""
     transformer = ComplexTransformer()
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     input_data = {
         "id": 4,
         "required_str": "   spaced   ",
@@ -134,7 +134,7 @@ def test_transform_whitespace_string():
 def test_transform_zero_value():
     """Test validation of integer greater than zero."""
     transformer = ComplexTransformer()
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     input_data = {
         "id": 5,
         "required_str": "test",
@@ -171,7 +171,7 @@ def test_transform_list_with_invalid_item():
 def test_transform_nested_empty_dict():
     """Test handling of empty nested dictionary."""
     transformer = ComplexTransformer()
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     input_data = {
         "id": 7,
         "required_str": "test",
@@ -187,7 +187,7 @@ def test_transform_nested_empty_dict():
 def test_transform_complex_nested_data():
     """Test handling of complex nested data structures."""
     transformer = ComplexTransformer()
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     input_data = {
         "id": 8,
         "required_str": "test",
@@ -239,7 +239,7 @@ def test_base_transformer_validation():
     transformer = TestTransformer(TestModel, TestMCPModel)
     
     # Test with valid data
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     result = transformer.to_mcp({
         "id": 123,
         "name": "Test",
@@ -309,7 +309,7 @@ def test_datetime_formatting():
     
     transformer = TestTransformer(TestModel, TestMCPModel)
     
-    dt = datetime(2024, 3, 19, 12, 34, 56, tzinfo=UTC)
+    dt = datetime(2024, 3, 19, 12, 34, 56, tzinfo=timezone.utc)
     formatted = transformer._format_datetime(dt)
     assert formatted == "2024-03-19T12:34:56Z"
     
@@ -370,7 +370,7 @@ def test_mcp_format_compliance():
             }
     
     transformer = TestTransformer(TestModel, TestMCPModel)
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     
     result = transformer.to_mcp({
         "id": 123,
