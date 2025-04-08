@@ -206,4 +206,26 @@ class PersonCreate(BaseModel):
     contact_type_id: Optional[int] = None
     details: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
-    custom_fields: List[CustomField] = Field(default_factory=list) 
+    custom_fields: List[CustomField] = Field(default_factory=list)
+
+
+class PersonUpdate(BaseModel):
+    """Model for updating an existing person."""
+    name: Optional[str] = None
+    prefix: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    suffix: Optional[str] = None
+    title: Optional[str] = None
+    company_name: Optional[str] = None
+    company_id: Optional[int] = None
+    emails: Optional[List[EmailPhone]] = None
+    phone_numbers: Optional[List[EmailPhone]] = None
+    socials: Optional[List[Social]] = None
+    websites: Optional[List[HttpUrl]] = None
+    address: Optional[Address] = None
+    assignee_id: Optional[int] = None
+    contact_type_id: Optional[int] = None
+    details: Optional[str] = None
+    tags: Optional[List[str]] = None
+    custom_fields: Optional[List[CustomField]] = None 
